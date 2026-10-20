@@ -9,6 +9,8 @@ Fly SpaceBourne 2 like a proper space sim. This mod supports:
 
 The game executable is never modified, and you can remove everything with one click.
 
+**[Download the latest release](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest)** · [Discussion on Steam](https://steamcommunity.com/app/1646850/discussions/0/565923139446378768/) · [Report a bug or share a profile](https://github.com/hubertdungen/SpaceBourne2-HOTAS/issues)
+
 <p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/cockpit.png" alt="Cockpit view with head tracking" width="760"></p>
 
 ## Features
