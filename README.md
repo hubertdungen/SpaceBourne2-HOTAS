@@ -9,6 +9,8 @@ Fly SpaceBourne 2 like a proper space sim. This mod supports:
 
 The game executable is never modified, and you can remove everything with one click.
 
+<p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/cockpit.png" alt="Cockpit view with head tracking" width="760"></p>
+
 ## Features
 
 - **Analog flight.** Pitch, roll, yaw, throttle, strafe and lift, each on any axis of any controller. You can mix devices: a stick from one brand, pedals from another.
