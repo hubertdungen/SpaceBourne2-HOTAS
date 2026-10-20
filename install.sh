@@ -30,6 +30,7 @@ win64="$game/SB2/Binaries/Win64"
 [[ -f "$win64/SB2-Win64-Shipping.exe" ]] || die "SpaceBourne 2 not found in '$game' (expected SB2/Binaries/Win64/SB2-Win64-Shipping.exe)."
 marker="$win64/SB2HOTAS-installed-UE4SS.txt"   # present only if we installed UE4SS
 entry='^[[:space:]]*SB2HOTAS[[:space:]]*:'
+desktop="${XDG_DATA_HOME:-$HOME/.local/share}/applications/sb2-hotas-bridge.desktop"
 
 if (( uninstall )); then
     for mods in "$win64/Mods" "$win64/ue4ss/Mods"; do
@@ -44,6 +45,7 @@ if (( uninstall )); then
             rm -rf "$win64/Mods"
         fi
     fi
+    rm -f "$desktop"
     echo "SB2 HOTAS removed from $win64"
     echo 'You can also remove WINEDLLOVERRIDES="dwmapi=n,b" from the game'"'"'s Steam launch options.'
     exit 0
@@ -80,6 +82,26 @@ fi
 # The bridge reads controllers through the SDL2.dll that ships with the game.
 if [[ -d "$here/bridge" && ! -f "$here/bridge/SDL2.dll" && -f "$win64/SDL2.dll" ]]; then cp "$win64/SDL2.dll" "$here/bridge/"; fi
 
+# An app-menu entry for the bridge, so it's one click away (handy in Steam Deck desktop mode).
+mkdir -p "$(dirname "$desktop")"
+cat > "$desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=SB2 HOTAS bridge
+Comment=Joystick, pedals and head tracking for SpaceBourne 2 (start the game first)
+Exec=bash "$here/run-bridge.sh"
+Terminal=true
+Categories=Game;
+EOF
+
+if command -v protontricks-launch >/dev/null 2>&1 || { command -v flatpak >/dev/null 2>&1 && flatpak info com.github.Matoking.protontricks >/dev/null 2>&1; }; then
+    pt="protontricks: found."
+else
+    pt="protontricks: NOT FOUND. The bridge needs it. Install it with your package manager, or:
+         flatpak install flathub com.github.Matoking.protontricks
+     (On Steam Deck: Discover store > search \"Protontricks\".)"
+fi
+
 cat <<EOF
 SB2 HOTAS installed in $win64
 
@@ -87,5 +109,7 @@ Next:
   1. In Steam: SpaceBourne 2 > Properties > Launch Options, enter:
          WINEDLLOVERRIDES="dwmapi=n,b" %command%
      (Proton only loads UE4SS with this.)
-  2. Start the game, then run "bash run-bridge.sh" to open the bridge inside the game's Proton prefix.
+  2. Start the game, then open "SB2 HOTAS bridge" from your app menu
+     (or run: bash "$here/run-bridge.sh").
+  $pt
 EOF

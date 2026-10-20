@@ -186,11 +186,58 @@ Tips:
 
 ## Linux / Steam Deck (Proton, experimental)
 
-1. In a terminal in the extracted folder, run `bash install.sh`. It finds the game in your Steam libraries; you can also pass the game folder as an argument. `bash install.sh --uninstall` removes the mod.
-2. In Steam, open SpaceBourne 2 → **Properties** → **Launch Options** and enter `WINEDLLOVERRIDES="dwmapi=n,b" %command%`.
-3. Start the game, then run `bash run-bridge.sh`. It opens the bridge inside the game's Proton prefix using [protontricks](https://github.com/Matoking/protontricks), which you need installed.
+SpaceBourne 2 runs on Linux through Steam's Proton, and so does SB2 HOTAS. The bridge runs inside the game's Proton prefix, next to the game.
 
-On a Steam Deck, do this in Desktop Mode. OpenTrack for Linux works with the same UDP output settings. This path hasn't been tested on real Linux hardware yet, so reports are very welcome.
+### 1. Install protontricks, once
+
+The bridge needs [protontricks](https://github.com/Matoking/protontricks) to start inside the game's prefix.
+
+- **Steam Deck:** switch to Desktop Mode, open the **Discover** store, search for **Protontricks**, and install it.
+- **Other Linux:** install `protontricks` from your package manager, or run `flatpak install flathub com.github.Matoking.protontricks`.
+
+### 2. Install SB2 HOTAS with one command
+
+Open a terminal (on Steam Deck: Konsole, in Desktop Mode) and run:
+
+```
+curl -fsSL https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/linux-setup.sh | bash
+```
+
+This one command does all of this:
+
+- downloads the latest release into `~/SB2-HOTAS`;
+- finds the game in your Steam libraries and installs the mod;
+- adds **SB2 HOTAS bridge** to your app menu;
+- tells you if protontricks is missing.
+
+If your game is somewhere unusual, add its folder at the end: `… | bash -s "/path/to/SpaceBourne 2"`.
+
+To install by hand instead: download the zip from Releases, extract it, and run `bash install.sh` in that folder.
+
+### 3. Set the launch option in Steam, once
+
+In Steam, open SpaceBourne 2 → **Properties** → **General** → **Launch Options**, and enter:
+
+```
+WINEDLLOVERRIDES="dwmapi=n,b" %command%
+```
+
+Without it, Proton doesn't load the mod loader.
+
+### 4. Every time you play
+
+1. Start SpaceBourne 2 from Steam.
+2. Open **SB2 HOTAS bridge** from your app menu. Or run `bash ~/SB2-HOTAS/run-bridge.sh`.
+3. Set up and fly exactly as on Windows (see *First flight* above).
+
+On Steam Deck, the bridge is a desktop window, so play in Desktop Mode, or set it up there first and then switch back.
+
+### Head tracking and removing the mod
+
+- **Head tracking:** OpenTrack for Linux works with the same output settings, *UDP over network* on `127.0.0.1:4242`.
+- **Removing the mod:** run `bash ~/SB2-HOTAS/install.sh --uninstall`, then clear the launch option in Steam.
+
+This path hasn't been tested on real Linux hardware yet. If you try it, a quick report in Issues helps a lot, whether it worked or not.
 
 ## Troubleshooting
 
