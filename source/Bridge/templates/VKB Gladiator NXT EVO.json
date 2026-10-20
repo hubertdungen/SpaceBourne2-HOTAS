@@ -1,0 +1,14 @@
+// VKB Gladiator NXT EVO (left or right hand, any grip): stick for pitch and roll, twist for Yaw.
+// STATUS: UNVERIFIED. The axis numbers are educated guesses nobody has checked on real hardware yet.
+// After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the wrong control,
+// select it and click Detect axis. Verified it? Use Export profile and share the file.
+// VKB sticks can be reprogrammed to other product IDs, so this matches any VKB device ("231D:*"); with two
+// VKB devices plugged in the match is ambiguous, so use Detect axis instead. Custom VKBDevCfg profiles can
+// also move axes around. Import a throttle or pedals template afterwards if you have one.
+{
+  "Axes": {
+    "Pitch": { "Device": "231D:*:VKB Gladiator:", "Axis": 1 },
+    "Roll":  { "Device": "231D:*:VKB Gladiator:", "Axis": 0 },
+    "Yaw":   { "Device": "231D:*:VKB Gladiator:", "Axis": 2 }
+  }
+}

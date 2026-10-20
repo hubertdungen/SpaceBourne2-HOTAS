@@ -1,0 +1,14 @@
+// Thrustmaster T.16000M FCS stick: twist for Yaw, base wheel for Throttle.
+// STATUS: UNVERIFIED. The device ID is known; the axis numbers are educated guesses nobody has checked on
+// real hardware yet. After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the
+// wrong control, select it and click Detect axis. Verified it? Use Export profile and share the file.
+// Have the TWCS throttle or pedals? Import their templates afterwards; they take over Throttle / Yaw.
+// The wheel is pre-inverted (it usually reads lowest when pushed forward); untick Invert if it runs backwards.
+{
+  "Axes": {
+    "Pitch":    { "Device": "044F:B10A:T.16000M:", "Axis": 1 },
+    "Roll":     { "Device": "044F:B10A:T.16000M:", "Axis": 0 },
+    "Yaw":      { "Device": "044F:B10A:T.16000M:", "Axis": 2 },
+    "Throttle": { "Device": "044F:B10A:T.16000M:", "Axis": 3, "Unipolar": true, "Curve": 1, "Invert": true }
+  }
+}

@@ -1,0 +1,14 @@
+// Logitech / Saitek X-56 Rhino: stick + throttle.
+// STATUS: UNVERIFIED. The device IDs are known; the axis numbers are educated guesses nobody has checked on
+// real hardware yet. After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the
+// wrong control, select it and click Detect axis. Verified it? Use Export profile and share the file.
+// Twist is Yaw; import a pedals template afterwards and the pedals take over Yaw.
+// The throttle is pre-inverted (most throttles read lowest at full forward); untick Invert if it runs backwards.
+{
+  "Axes": {
+    "Pitch":    { "Device": "0738:2221:X-56 Stick:",    "Axis": 1 },
+    "Roll":     { "Device": "0738:2221:X-56 Stick:",    "Axis": 0 },
+    "Yaw":      { "Device": "0738:2221:X-56 Stick:",    "Axis": 4 },
+    "Throttle": { "Device": "0738:A221:X-56 Throttle:", "Axis": 0, "Unipolar": true, "Curve": 1, "Invert": true }
+  }
+}

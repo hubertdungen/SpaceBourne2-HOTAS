@@ -1,0 +1,14 @@
+// Thrustmaster HOTAS Warthog: stick + dual throttle. The stick has no twist, so Yaw stays on pedals or keyboard.
+// STATUS: UNVERIFIED. The device IDs are known; the axis numbers are educated guesses nobody has checked on
+// real hardware yet. After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the
+// wrong control, select it and click Detect axis. Verified it? Use Export profile and share the file.
+// Throttle uses the right lever; the slew control drives Strafe and Lift. Throttle and Lift are pre-inverted.
+{
+  "Axes": {
+    "Pitch":    { "Device": "044F:0402:Joystick - HOTAS Warthog:", "Axis": 1 },
+    "Roll":     { "Device": "044F:0402:Joystick - HOTAS Warthog:", "Axis": 0 },
+    "Throttle": { "Device": "044F:0404:Throttle - HOTAS Warthog:", "Axis": 2, "Unipolar": true, "Curve": 1, "Invert": true },
+    "Strafe":   { "Device": "044F:0404:Throttle - HOTAS Warthog:", "Axis": 0 },
+    "Lift":     { "Device": "044F:0404:Throttle - HOTAS Warthog:", "Axis": 1, "Invert": true }
+  }
+}

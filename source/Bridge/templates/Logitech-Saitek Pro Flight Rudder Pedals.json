@@ -1,0 +1,9 @@
+// Logitech / Saitek Pro Flight Rudder Pedals: rudder for Yaw. Import it after your stick template.
+// STATUS: UNVERIFIED. The device ID is known; the axis number is an educated guess (toe brakes first, then
+// the rudder). After importing, click Calibrate axes and watch the Axis monitor; if Yaw follows a toe brake,
+// select Yaw and click Detect axis. Verified it? Use Export profile and share the file.
+{
+  "Axes": {
+    "Yaw": { "Device": "06A3:0763:Saitek Pro Flight Rudder Pedals:", "Axis": 2 }
+  }
+}

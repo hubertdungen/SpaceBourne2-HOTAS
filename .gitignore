@@ -1,0 +1,10 @@
+# Build output
+bin/
+obj/
+/bridge/
+/release/
+/ue4ss/
+# Runtime files the bridge writes next to itself in old builds
+state.txt*
+status.txt
+profile.json

@@ -1,0 +1,13 @@
+// Thrustmaster TWCS throttle: lever for Throttle, mini-stick for Strafe and Lift. Import it after your stick.
+// STATUS: UNVERIFIED. The device ID is known; the axis numbers are educated guesses nobody has checked on
+// real hardware yet. After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the
+// wrong control, select it and click Detect axis. Verified it? Use Export profile and share the file.
+// No pedals and you'd rather steer with the rocker paddles? Select Yaw and click Detect axis.
+// Throttle and Lift are pre-inverted; untick Invert on whichever runs backwards.
+{
+  "Axes": {
+    "Throttle": { "Device": "044F:B687:TWCS Throttle:", "Axis": 2, "Unipolar": true, "Curve": 1, "Invert": true },
+    "Strafe":   { "Device": "044F:B687:TWCS Throttle:", "Axis": 0 },
+    "Lift":     { "Device": "044F:B687:TWCS Throttle:", "Axis": 1, "Invert": true }
+  }
+}

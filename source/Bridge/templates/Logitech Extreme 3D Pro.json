@@ -1,0 +1,13 @@
+// Logitech Extreme 3D Pro: stick, twist for Yaw, base slider for Throttle.
+// STATUS: UNVERIFIED. The device ID is known; the axis numbers are educated guesses nobody has checked on
+// real hardware yet. After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the
+// wrong control, select it and click Detect axis. Verified it? Use Export profile and share the file.
+// The slider is pre-inverted (it usually reads lowest when pushed forward); untick Invert if it runs backwards.
+{
+  "Axes": {
+    "Pitch":    { "Device": "046D:C215:Logitech Extreme 3D:", "Axis": 1 },
+    "Roll":     { "Device": "046D:C215:Logitech Extreme 3D:", "Axis": 0 },
+    "Yaw":      { "Device": "046D:C215:Logitech Extreme 3D:", "Axis": 2 },
+    "Throttle": { "Device": "046D:C215:Logitech Extreme 3D:", "Axis": 3, "Unipolar": true, "Curve": 1, "Invert": true }
+  }
+}

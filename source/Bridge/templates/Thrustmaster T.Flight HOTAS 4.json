@@ -1,0 +1,14 @@
+// Thrustmaster T.Flight HOTAS 4 (stick and throttle are one USB device).
+// STATUS: UNVERIFIED. The product ID and the axis numbers are educated guesses nobody has checked on real
+// hardware yet. After Scan devices, if the device shows "(not connected)", use Detect axis for each movement.
+// Otherwise click Calibrate axes and watch the Axis monitor; fix any wrong movement with Detect axis.
+// Verified it? Use Export profile and share the file.
+// Yaw is the twist or the throttle rocker, whichever the HOTAS is set to. Throttle is pre-inverted.
+{
+  "Axes": {
+    "Pitch":    { "Device": "044F:B67B:T.Flight Hotas 4:", "Axis": 1 },
+    "Roll":     { "Device": "044F:B67B:T.Flight Hotas 4:", "Axis": 0 },
+    "Yaw":      { "Device": "044F:B67B:T.Flight Hotas 4:", "Axis": 3 },
+    "Throttle": { "Device": "044F:B67B:T.Flight Hotas 4:", "Axis": 2, "Unipolar": true, "Curve": 1, "Invert": true }
+  }
+}

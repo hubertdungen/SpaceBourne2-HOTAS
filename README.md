@@ -1,0 +1,227 @@
+<p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/logo.png" alt="SB2 HOTAS" width="520"></p>
+
+# SB2 HOTAS: real flight controls and head tracking for SpaceBourne 2
+
+Fly SpaceBourne 2 like a proper space sim. This mod supports:
+
+- your joystick, throttle and rudder pedals, or a full HOTAS — anything Windows sees as a game controller;
+- head tracking (OpenTrack), to look around the cockpit.
+
+The game executable is never modified, and you can remove everything with one click.
+
+## Features
+
+- **Analog flight.** Pitch, roll, yaw, throttle, strafe and lift, each on any axis of any controller. You can mix devices: a stick from one brand, pedals from another.
+- **Head tracking.** OpenTrack moves your head in the cockpit. It works with a plain webcam, so you don't need special hardware.
+- **Look axes.** No head tracker? Put Look Yaw / Look Pitch on a mini-stick to look around.
+- **Throttle modes.** Choose between:
+  - forward only (0–100%);
+  - full range with stop in the middle;
+  - a separate reverse lever (great on dual-throttle HOTAS);
+  - reverse buttons, either hold or toggle.
+- **Every control counts.** Buttons, hat directions, rotary selectors, toggle switches, sliders and toe brakes can all press game keys. The game's 26 ship actions (fire, missiles, flares, boost, warp, landing gear, power…) come pre-filled with their default keys.
+- **Selectors and switches done right.** Each binding can hold its key, tap once, or tap on both on and off. A rotary selector never jams a key down.
+- **Templates.** Ready-made setups for popular controllers, which you can combine. You can also export your own setup and share it.
+- **Keyboard still works.** Anything you don't put on a controller stays on keyboard and mouse.
+- **Stays out of your way.** Flight control pauses by itself in menus, warp, landing and docking. **Ctrl+Alt+F12** cuts it instantly.
+- **Fails safe.** If a game update changes something the mod relies on, the mod switches itself off and the game stays playable.
+- **Windows**, plus **Linux / Steam Deck** through Proton (experimental).
+
+## What you need
+
+- **SpaceBourne 2** (Steam or GOG).
+- Any **game controllers**: joystick, HOTAS, throttle, rudder pedals.
+- Optionally, **[OpenTrack](https://github.com/opentrack/opentrack/releases)** for head tracking (free; a webcam is enough).
+
+Nothing else: no .NET, no mod manager. The download already includes everything, including the mod loader [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS).
+
+## Install (Windows, about 2 minutes)
+
+1. Download `SB2-HOTAS-x.y.z.zip` from **[Releases](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases)** and extract it somewhere you keep things, such as `Documents`. Not inside the game folder.
+2. Open `bridge\SB2-HOTAS.exe`. If Windows SmartScreen warns you, click **More info → Run anyway**; it warns because the app is new and not code-signed.
+3. Click **Install mod…**. The bridge finds the Steam copy of the game by itself. For GOG or another location, answer **No** and pick the game folder.
+
+That's it. **Uninstall mod…** puts the game back exactly as it was. If you already use UE4SS for other mods, SB2 HOTAS reuses it and doesn't touch your other mods.
+
+## First flight (about 5 minutes)
+
+All of this happens in the bridge window. The **NEXT STEP** line at the top of the **Axis monitor** always tells you what's missing.
+
+<p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/bridge.png" alt="The SB2 HOTAS bridge window" width="760"></p>
+
+1. **Scan devices.** Your controllers appear in the Axis monitor; move them and watch the numbers.
+2. **Assign axes.** You have two ways:
+   - **Import profile…** and pick a template from `bridge\templates`. Templates are per device and add up: import your stick, then your throttle, then your pedals.
+   - Or do it by hand: select a movement (Pitch, Roll…), click **Detect axis**, and move only that control.
+3. **Calibrate axes.** Move every assigned axis end to end, centre the stick and pedals, and click **Finish**. You can do all axes in one go, or one at a time.
+4. **Check directions.** Watch the **Normalized** line in the Axis monitor. If something goes the wrong way, tick **Invert** for it.
+5. **Buttons.** On the Buttons tab, select an action, click **Detect input**, and press the button you want for it.
+6. Start the game, click **ARM** in the bridge, and fly.
+
+## The controls, explained
+
+### Flight axes
+
+| Movement | What it does in the game |
+|---|---|
+| **Pitch** | Nose up/down. Stick forward dives, like a plane. |
+| **Yaw** | Nose left/right. Use pedals or stick twist. |
+| **Roll** | Rolls the ship, like the game's Q/E keys, with the game's own smoothing. |
+| **Throttle** | Forward speed; see the throttle section below. |
+| **Strafe / Lift** | Slide sideways or up/down, like A/D and R/V. A throttle mini-stick is perfect for this. |
+| **Reverse thrust** | A second lever that pulls the throttle backwards. |
+| **Look Yaw / Look Pitch** | Turn your view in the cockpit without head tracking. Full deflection looks 90° to the side and 60° up or down. |
+
+Pitch and yaw move the game's aim point, the way the mouse does, and the ship turns to follow it. **Turn rate** (bottom of the window) sets how fast the aim moves at full deflection.
+
+### Per-axis tuning
+
+- **Invert** flips the direction.
+- **Deadzone** ignores small movements around the centre (0–0.4). Raise it if a worn stick creeps.
+- **Curve** sets the response: 1 is linear, and higher values give finer control near the centre with full power at the end (0.5–3).
+
+### Throttle
+
+- **Throttle forward only** is ticked by default: the lever goes from 0 to 100%, and you slow down by pulling it back.
+- Untick it for **full range**: −100% to +100%, with stop in the middle. Recalibrate afterwards, with the throttle in the middle.
+- **Reverse thrust** axis: on a dual-throttle HOTAS (such as the X-56), put one lever on Throttle and the other on Reverse thrust.
+- **Throttle reverse (hold)** and **Throttle reverse (toggle)** are special button outputs on the Buttons tab. They flip the throttle into reverse. The monitor shows `[REVERSE]` while reverse is on.
+
+### Buttons, hats, selectors, switches
+
+Any control can press a game key:
+
+- a button;
+- a hat direction;
+- a spare axis pushed past about a third of its travel, which shows as `Axis 3 +` or `Axis 3 -`. That covers rotaries, sliders and toe brakes.
+
+The **Mode** column sets how each binding presses its key:
+
+| Mode | What it does | Use it for |
+|---|---|---|
+| **Hold** | Holds the key down while the control is held | Normal buttons |
+| **Tap** | One press each time the control turns on | Rotary selectors, latched switches |
+| **Tap on/off** | One press when it turns on, another when it turns off | Two-position toggle switches |
+
+You can also manage the rows:
+
+- **Add row** adds a binding.
+- **Clear input** unbinds the selected row but keeps its name and key.
+- **Reset all…** brings back the 26 game actions.
+- **Wheel up** / **Wheel down** send one mouse-wheel notch per press, for the game's speed steps.
+
+If you changed a key in the game's settings, change it in the **Game key** column too.
+
+### While you fly
+
+| Key | What it does |
+|---|---|
+| **Ctrl+Alt+F12** | Disarms instantly; the game goes back to keyboard and mouse. |
+| **Ctrl+Alt+F11** | Recentres your head (OpenTrack). |
+
+Movements that aren't on a controller still answer to the game's default keys:
+
+| Movement | Keys |
+|---|---|
+| Throttle | W / S |
+| Strafe | A / D |
+| Lift | R / V |
+| Roll | Q / E |
+
+Caps Lock speed lock keeps working with a keyboard throttle. Pitch and yaw stay on the mouse unless you assign them.
+
+## Head tracking with OpenTrack
+
+You don't need TrackIR: OpenTrack is free, and a normal webcam is enough.
+
+1. Install **[OpenTrack](https://github.com/opentrack/opentrack/releases)**.
+2. Choose a **tracker** (the input):
+   - **neuralnet tracker**: webcam only, no extra hardware. This is the easiest start.
+   - **PointTracker**: for an IR clip or cap, if you have one.
+3. Set the **output** to **UDP over network**. Click the hammer icon next to it and set:
+   - **Remote IP** to `127.0.0.1`;
+   - **Port** to `4242`.
+4. Click **Start**. The bridge's bottom line should say **OpenTrack OK**.
+5. In the game, switch to the cockpit view. Your head now moves the camera. **Ctrl+Alt+F11** (or OpenTrack's own centre key) recentres it.
+
+Tips:
+
+- If the view moves the wrong way on some axis, invert that axis in OpenTrack (**Options → Output**).
+- OpenTrack's **Mapping** curves shape how far the view turns for a given head turn. Gentle curves feel best.
+- Head tracking works in the cockpit view only.
+
+## Linux / Steam Deck (Proton, experimental)
+
+1. In a terminal in the extracted folder, run `bash install.sh`. It finds the game in your Steam libraries; you can also pass the game folder as an argument. `bash install.sh --uninstall` removes the mod.
+2. In Steam, open SpaceBourne 2 → **Properties** → **Launch Options** and enter `WINEDLLOVERRIDES="dwmapi=n,b" %command%`.
+3. Start the game, then run `bash run-bridge.sh`. It opens the bridge inside the game's Proton prefix using [protontricks](https://github.com/Matoking/protontricks), which you need installed.
+
+On a Steam Deck, do this in Desktop Mode. OpenTrack for Linux works with the same UDP output settings. This path hasn't been tested on real Linux hardware yet, so reports are very welcome.
+
+## Troubleshooting
+
+**ARM does nothing in flight.** Read the **NEXT STEP** line. Usually an axis still needs **Calibrate axes**. Until every assigned axis is calibrated, ARM only enables head tracking and buttons, and the status line tells you so.
+
+**The stick moves the ship forward or sideways while the bridge is disarmed.** That's the game's own leftover joystick support, which treats your HOTAS like a gamepad. Once you ARM, the mod takes over flight and this stops.
+
+**The cursor or the ship drifts to one side while the game runs.** Most players won't see this. If you do, go in this order:
+
+1. **Look for a forgotten gamepad.** An old wired pad, a USB receiver, or a Bluetooth pad left on: a worn stick on any of them drifts, and the game adds it to your HOTAS. Check Windows' *Set up USB game controllers* and Steam → Settings → **Controller**. Unplug it or switch it off.
+2. **Check Steam Input.** In Steam → Settings → **Controller**, turn off Steam Input for generic controllers. You can also do it for this game only: SpaceBourne 2 → Properties → Controller → **Disable Steam Input**.
+3. **Only if it still drifts:** your controller is one the game reads wrongly (it happened with an X-56 stick). The bridge reads it correctly, so hide the HOTAS from games with **[HidHide](https://github.com/nefarius/HidHide/releases)** (free):
+   1. Install HidHide and restart the PC.
+   2. Open the HidHide configuration client.
+   3. On the **Applications** tab, add `bridge\SB2-HOTAS.exe`. Add your controller's own software too, if you use it.
+   4. On the **Devices** tab, tick your stick, throttle and pedals, then tick **Enable device hiding**.
+   5. Unplug and replug the controllers.
+
+   Games now see nothing, and SB2 HOTAS gets everything. For another game that should use the HOTAS directly, add it to HidHide's application list, or untick **Enable device hiding** while you play it.
+
+**Button bindings do nothing.** Run the game and the bridge with the same permissions: both normal, or both as administrator.
+
+**"In-game mod" says "no news yet".** UE4SS didn't load the mod. Click **Install mod…** again. On Linux, check the launch option. The log is in `SB2\Binaries\Win64\UE4SS.log` inside the game folder.
+
+**Two identical controllers.** They show up as `Name` and `Name #2`. Your settings live in `%LOCALAPPDATA%\SB2HOTAS\profile.json`.
+
+## Templates
+
+Templates live in `bridge\templates`, one per device:
+
+- **Sticks / HOTAS:** Logitech Extreme 3D Pro; Logitech X-56; Logitech/Saitek X52 and X52 Pro; Thrustmaster T.16000M FCS; T.Flight HOTAS X / 4 / One; HOTAS Warthog; VKB Gladiator NXT EVO.
+- **Throttle:** Thrustmaster TWCS.
+- **Pedals:** Thrustmaster T.Flight Rudder (TFRP); Logitech/Saitek Pro Flight Rudder.
+
+The X-56 and TFRP ones come from a real setup. The others have known device IDs, but their axis numbers are best guesses. After importing, always calibrate, and re-detect any axis that's off.
+
+Got one working? **Export profile…** and share it in an issue, and it becomes a verified template.
+
+## After a game update
+
+If an update changes the game internals the mod relies on, the mod switches itself off instead of misbehaving. The **In-game mod** line then shows `ERROR: … incompatible game version (property …)`, and keyboard and mouse keep working. Please open an issue with that line.
+
+## How it works
+
+The mod has two parts:
+
+- **Bridge** (`bridge\SB2-HOTAS.exe`). A small Windows app that reads your controllers (through the SDL2 library that ships with the game) and OpenTrack (over UDP). It writes what it reads to `%LOCALAPPDATA%\SB2HOTAS\state.txt` 60 times a second.
+- **Mod** (a [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) Lua mod). Inside the game, it reads that file and steers the ship through the game's own flight code, and moves the cockpit camera with your head. It uses no memory offsets and no executable patches, and it never touches your saves.
+
+## Credits and license
+
+SB2 HOTAS is MIT licensed (see `LICENSE`). It builds on:
+
+- [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) (MIT), bundled in the download;
+- [SDL2](https://www.libsdl.org/) (zlib), from the game's own copy;
+- the .NET runtime (MIT), bundled in the bridge.
+
+`THIRD-PARTY-NOTICES.txt` has the details. Thanks to the OpenTrack and HidHide projects. This is a fan project, not affiliated with the developers of SpaceBourne 2.
+
+## Developers: isolated test copy
+
+`Prepare-TestCopy.ps1` builds the bridge and installs the mod into a full copy of the game in `work\sandbox\Game`. `Start-TestCopy.ps1` starts the bridge and that copy. Neither script writes to the Steam install.
+
+The test copy shares the original game's save folder. `Start-TestCopy.ps1` backs it up to `work\backup` first, and refuses to start while the game is already running.
+
+## Developers: release package
+
+`Package.ps1` builds `release\SB2-HOTAS-<version>.zip` with the .NET 10 SDK. Put [UE4SS 3.0.0](https://github.com/UE4SS-RE/RE-UE4SS/releases/tag/v3.0.0) (`UE4SS.dll`, `dwmapi.dll`, `UE4SS-settings.ini`) in `..\..\work\tools\ue4ss` first. The version comes from `<Version>` in `source\Bridge\Bridge.csproj`. The packaged README stops before the Developers sections, because the developer scripts are not in the zip.

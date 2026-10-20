@@ -1,0 +1,13 @@
+// Logitech / Saitek X52 Pro HOTAS (stick and throttle are one USB device).
+// STATUS: UNVERIFIED. The device ID is known; the axis numbers are educated guesses nobody has checked on
+// real hardware yet. After importing, click Calibrate axes and watch the Axis monitor. If a movement uses the
+// wrong control, select it and click Detect axis. Verified it? Use Export profile and share the file.
+// Twist is Yaw; a pedals template imported afterwards takes over Yaw. Throttle is pre-inverted.
+{
+  "Axes": {
+    "Pitch":    { "Device": "06A3:0762:X52 Pro:", "Axis": 1 },
+    "Roll":     { "Device": "06A3:0762:X52 Pro:", "Axis": 0 },
+    "Yaw":      { "Device": "06A3:0762:X52 Pro:", "Axis": 5 },
+    "Throttle": { "Device": "06A3:0762:X52 Pro:", "Axis": 2, "Unipolar": true, "Curve": 1, "Invert": true }
+  }
+}

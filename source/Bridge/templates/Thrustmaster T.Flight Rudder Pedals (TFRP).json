@@ -1,0 +1,9 @@
+// Thrustmaster T.Flight Rudder Pedals (TFRP): rudder for Yaw. Import it after your stick template.
+// STATUS: PARTLY VERIFIED. The device ID and its 3 axes (two toe brakes, then the rudder) were checked on real
+// hardware; the rudder being axis 2 is still a guess. After importing, click Calibrate axes and watch the Axis
+// monitor; if Yaw follows a toe brake, select Yaw and click Detect axis.
+{
+  "Axes": {
+    "Yaw": { "Device": "044F:B679:T-Rudder:", "Axis": 2 }
+  }
+}
