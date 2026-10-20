@@ -100,8 +100,8 @@ local function flight(context,delta)
         end
         -- Axes the player did not assign are left alone, so keyboard and mouse keep driving them.
         if type(ship.ThrustLocked)~="boolean" then error("incompatible game version (property ThrustLocked)") end
-        -- A keyboard throttle (from the bridge) yields to the game's speed lock (Caps Lock); a real throttle doesn't need it.
-        if has.throttle and not (has.keyboardThrottle and ship.ThrustLocked) then movement:SetForwardInput(f.throttle) end
+        -- The game's speed lock (Caps Lock) always wins: it lets a spring-centred HOSAS stick or the keyboard hold a speed.
+        if has.throttle and not ship.ThrustLocked then movement:SetForwardInput(f.throttle) end
         if has.strafe then movement:SetRightInput(f.strafe) end
         if has.lift then movement:SetUpInput(f.lift) end
         -- SetRollInput takes a per-frame amount, not an axis. MoveRoll is the target the roll keys

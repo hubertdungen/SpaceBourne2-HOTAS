@@ -4,7 +4,7 @@
 
 Fly SpaceBourne 2 like a proper space sim. This mod supports:
 
-- your joystick, throttle and rudder pedals, or a full HOTAS — anything Windows sees as a game controller;
+- your joystick, throttle and rudder pedals, a full HOTAS, or a HOSAS (two sticks) — anything Windows sees as a game controller;
 - head tracking (OpenTrack), to look around the cockpit.
 
 The game executable is never modified, and you can remove everything with one click.
@@ -130,7 +130,37 @@ Movements that aren't on a controller still answer to the game's default keys:
 | Lift | R / V |
 | Roll | Q / E |
 
-Caps Lock speed lock keeps working with a keyboard throttle. Pitch and yaw stay on the mouse unless you assign them.
+The game's speed lock (Caps Lock) always wins: while it's on, the game holds your speed whatever the throttle says. Pitch and yaw stay on the mouse unless you assign them.
+
+## HOSAS (two sticks)
+
+Two joysticks, one per hand, is the classic space-sim setup, and SB2 HOTAS supports it fully. The bridge reads both sticks at once, and any movement can go on any axis of either stick.
+
+A typical layout:
+
+| Hand | Stick axis | Movement |
+|---|---|---|
+| Right | forward / back | **Pitch** |
+| Right | left / right | **Roll** |
+| Right | twist | **Yaw** |
+| Left | forward / back | **Throttle**, with *Throttle forward only* unticked |
+| Left | left / right | **Strafe** |
+| Left | twist | **Lift** |
+
+Setting it up:
+
+1. **Scan devices.** Both sticks appear in the Axis monitor.
+2. For each movement, select it, click **Detect axis**, and move **that** stick in **that** direction.
+3. **Untick "Throttle forward only"**, so the left stick drives forward and back with stop in the middle.
+4. **Calibrate axes.** Move both sticks end to end, then let both centre and click **Finish**.
+5. Bind buttons from both sticks on the Buttons tab, the same way.
+
+Some details:
+
+- **Holding a speed.** A spring-centred stick stops the ship when you let go. Bind **Speed lock** (Caps Lock, already in the Buttons tab) to a button. While it's on, the game holds your speed and the stick's throttle is ignored, until you press it again.
+- **Two identical sticks** (for example 2× T.16000M, or 2× Gladiator with the same configuration) show up as `Name` and `Name #2`. They're told apart by the USB port they're plugged into. Keep each stick in its own port, and the left one stays left after a reboot. If you swap ports, just Detect axis again.
+- **Templates** describe one stick each, so they can't tell a left stick from a right one. For HOSAS, Detect axis is quicker than a template. For two VKB sticks, always use Detect axis.
+- **Look axes** also work on a spare analog mini-stick on either stick.
 
 ## Head tracking with OpenTrack
 

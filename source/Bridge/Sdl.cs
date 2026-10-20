@@ -15,6 +15,7 @@ internal static class Sdl
     [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern ushort SDL_JoystickGetVendor(IntPtr joystick);
     [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern ushort SDL_JoystickGetProduct(IntPtr joystick);
     [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr SDL_JoystickGetSerial(IntPtr joystick);
+    [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr SDL_JoystickPath(IntPtr joystick);   // SDL 2.24+
     [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern int SDL_JoystickNumAxes(IntPtr joystick);
     [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern int SDL_JoystickNumButtons(IntPtr joystick);
     [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern int SDL_JoystickNumHats(IntPtr joystick);
@@ -37,6 +38,7 @@ internal sealed class Device : IDisposable
     public string Name { get; }
     public string Key { get; private set; }
     public string Label { get; private set; }
+    public string DevicePath { get; } = "";
     public int Count { get; }
     // Inputs bindable like buttons: real buttons, then four directions per hat, then each axis pushed past
     // AxisPress either way, so rotaries, sliders, toe brakes and mini-sticks can press game keys too.
@@ -51,6 +53,8 @@ internal sealed class Device : IDisposable
         Name=Sdl.Str(Sdl.SDL_JoystickName(Handle));
         Key=baseKey=$"{Sdl.SDL_JoystickGetVendor(Handle):X4}:{Sdl.SDL_JoystickGetProduct(Handle):X4}:{Name}:{Sdl.Str(Sdl.SDL_JoystickGetSerial(Handle))}";
         Label=Name;
+        // The OS device path follows the USB port; it keeps identical twins (HOSAS) apart across reboots.
+        try { DevicePath=Sdl.Str(Sdl.SDL_JoystickPath(Handle)); } catch(EntryPointNotFoundException) { DevicePath=""; }
         Count=Sdl.SDL_JoystickNumAxes(Handle);
         realButtons=Sdl.SDL_JoystickNumButtons(Handle);
         RealInputs=realButtons+4*Sdl.SDL_JoystickNumHats(Handle);

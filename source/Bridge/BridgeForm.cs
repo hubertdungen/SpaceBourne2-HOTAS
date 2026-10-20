@@ -258,13 +258,19 @@ internal sealed class BridgeForm : Form
         Disarm(); calibration=false; learning=null; learningButton=null; calibrate.Text="Calibrate axes";
         foreach(var d in devices) d.Dispose(); devices.Clear();
         Sdl.SDL_PumpEvents();
+        var opened=new List<Device>();
         for(int i=0;i<Sdl.SDL_NumJoysticks();i++)
         {
-            Device d;
-            try { d=new Device(i); } catch(IOException) { continue; }
-            for(int n=2;devices.Any(o=>o.Key==d.Key);n++) d.Number(n);
-            devices.Add(d);
+            try { opened.Add(new Device(i)); } catch(IOException) {}
         }
+        // Identical controllers (HOSAS twins) are numbered by USB port path, not detection order, so "#2" stays the
+        // same physical stick across reboots as long as each stick stays in its USB port.
+        foreach(var twins in opened.GroupBy(d=>d.Key).Where(g=>g.Count()>1))
+        {
+            int n=1;
+            foreach(var d in twins.OrderBy(d=>d.DevicePath,StringComparer.Ordinal).ToList()) { if(n>1) d.Number(n); n++; }
+        }
+        devices.AddRange(opened);
         if(AdoptDevices()) settings.Save(profilePath);
         UpdateRows(); RefreshButtonRows();
         status.Text=devices.Count==0 ? "No controllers found. Connect your joystick, throttle or pedals and click Scan devices."
