@@ -2,6 +2,7 @@
 -- No offsets, executable patches, save writes, or console gameplay commands.
 local P = require("protocol")
 local Config = require("config")
+local Screen = require("screen")   -- triple screen / ultrawide: FOV and HUD, independent of flight
 -- Game internals this mod relies on. If an update renames one, the mod switches itself off and its
 -- status (bridge "In-game mod" line, UE4SS.log) names the missing property; fix the name here.
 -- Blueprint classes:
@@ -77,6 +78,7 @@ local function flight(context,delta)
     protect(function()
         local ship=context:get()
         if not valid(ship) or not ship:IsPlayerControlled() then return end
+        Screen.frame()   -- has its own error guard, so it can never switch flight off
         local dt=tonumber(delta:get()) or 0
         local f=read()
         if not shipWatch(f,dt) or not f.flight or not allowed(ship) then
@@ -156,3 +158,4 @@ LoopAsync(1000,function()
     end)
     return false
 end)
+Screen.start()

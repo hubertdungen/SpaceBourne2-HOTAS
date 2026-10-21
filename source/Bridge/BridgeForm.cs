@@ -22,6 +22,14 @@ internal sealed class BridgeForm : Form
     readonly CheckBox headCheck=new() { Text="Head tracking (OpenTrack) in the cockpit", AutoSize=true };
     readonly CheckBox flightCheck=new() { Text="Flight axes", AutoSize=true, Checked=true };
     readonly CheckBox forwardOnly=new() { Text="Throttle forward only (0…100%)", AutoSize=true };
+    readonly CheckBox spanCheck=new() { Text="Stretch the game over all my monitors", AutoSize=true };
+    readonly CheckBox fovCheck=new() { Text="Wider view on wide screens (Hor+ field of view: the side screens show more, nothing is stretched)", AutoSize=true };
+    readonly CheckBox hudCheck=new() { Text="Keep the HUD and menus on the centre monitor", AutoSize=true };
+    readonly Label screenLabel=new() { AutoSize=true, MaximumSize=new Size(1000,0), Padding=new Padding(0,10,0,0) };
+    readonly Screens screens=new();
+    readonly LinkLabel updateLink=new() { AutoSize=true, Visible=false, Padding=new Padding(8,6,0,0), Font=new Font("Segoe UI",9,FontStyle.Bold) };
+    // Fixed on purpose: the update check only reads a version number, it never decides where the link goes.
+    const string ReleasesUrl="https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest";
     bool reverseToggled;
     readonly Dictionary<ButtonBinding,bool> lastPressed=[];
     readonly Dictionary<ButtonBinding,(int Pending,long Down,long Gap)> taps=[];
@@ -82,6 +90,7 @@ internal sealed class BridgeForm : Form
         AddButton(actions,"Export profile…",ExportProfile);
         AddButton(actions,"Install mod…",InstallMod);
         AddButton(actions,"Uninstall mod…",UninstallMod);
+        AddButton(actions,"▶ Play SpaceBourne 2",PlayGame);
         layout.Controls.Add(actions,0,2);
         var tabs=new TabControl { Dock=DockStyle.Fill };
         var axisTab=new TabPage("Axis monitor"); axisTab.Controls.Add(monitor); tabs.TabPages.Add(axisTab);
@@ -101,6 +110,7 @@ internal sealed class BridgeForm : Form
         AddButton(buttonActions,"Clear input",ClearButtonRow);
         AddButton(buttonActions,"Reset all…",ResetButtons);
         buttonTab.Controls.Add(buttonGrid); buttonTab.Controls.Add(buttonActions); tabs.TabPages.Add(buttonTab);
+        tabs.TabPages.Add(ScreenTab());
         layout.Controls.Add(tabs,0,3);
         var bottom=new FlowLayoutPanel { AutoSize=true, Dock=DockStyle.Fill };
         headCheck.Checked=settings.HeadEnabled;
@@ -119,7 +129,10 @@ internal sealed class BridgeForm : Form
         var center=new Button { Text="Recenter head",AutoSize=true }; center.Click+=(_,_)=>CenterHead(); bottom.Controls.Add(center);
         bottom.Controls.Add(new Label { Text="Turn rate °/s", AutoSize=true, Padding=new Padding(8,6,0,0) }); bottom.Controls.Add(turnRate);
         armButton.Click+=(_,_)=>Safe(ToggleArm); bottom.Controls.Add(armButton);
-        bottom.Controls.Add(headLabel); layout.Controls.Add(bottom,0,4);
+        bottom.Controls.Add(headLabel);
+        updateLink.LinkClicked+=(_,_)=>Safe(()=>Process.Start(new ProcessStartInfo(ReleasesUrl) { UseShellExecute=true }));
+        bottom.Controls.Add(updateLink); layout.Controls.Add(bottom,0,4);
+        _=CheckForUpdate();
         layout.Controls.Add(status,0,5); Controls.Add(layout);
         // The hint must be set before SDL_Init: the bridge reads the controllers while the game has focus.
         try
@@ -137,6 +150,7 @@ internal sealed class BridgeForm : Form
         }
         try { udp=new UdpClient(new IPEndPoint(IPAddress.Loopback,settings.UdpPort)); _=ReceivePose(); }
         catch(SocketException e) { status.Text=$"Head tracking unavailable: UDP port {settings.UdpPort} is in use. {e.Message}"; }
+        UpdateScreens();
         timer.Tick+=(_,_)=>Safe(Poll); timer.Start();
         FormClosing+=(_,_)=>CloseBridge();
     }
@@ -158,6 +172,77 @@ internal sealed class BridgeForm : Form
         base.WndProc(ref m);
     }
     void CenterHead() { lock(poseLock) zero=(double[])pose.Clone(); }
+    TabPage ScreenTab()
+    {
+        var page=new TabPage("Triple screen");
+        var panel=new FlowLayoutPanel { Dock=DockStyle.Fill, FlowDirection=FlowDirection.TopDown, WrapContents=false, AutoScroll=true, Padding=new Padding(8) };
+        panel.Controls.Add(new Label { AutoSize=true, MaximumSize=new Size(1000,0), Padding=new Padding(0,0,0,8), Text=
+            "Play on two, three or more monitors as one wide screen, without NVIDIA Surround or AMD Eyefinity. "
+            +"In SpaceBourne 2, set Display Mode to Windowed Fullscreen, then tick the first box. This works with or without ARM, "
+            +"and the game goes back to one monitor when you untick it." });
+        spanCheck.Checked=settings.SpanScreens; fovCheck.Checked=settings.WideFov; hudCheck.Checked=settings.CentreHud;
+        foreach(var box in new[]{spanCheck,fovCheck,hudCheck})
+        {
+            box.CheckedChanged+=(_,_)=>Safe(()=>
+            {
+                // Stretching wants the other two as well; they stay separately untickable.
+                if(box==spanCheck && spanCheck.Checked && !fovCheck.Checked && !hudCheck.Checked) { fovCheck.Checked=true; hudCheck.Checked=true; }
+                Save(); UpdateScreens();
+                status.Text="Triple screen: "+(spanCheck.Checked ? "on" : "off")+", wide view "+(fovCheck.Checked ? "on" : "off")
+                    +", HUD on the centre monitor "+(hudCheck.Checked ? "on" : "off")+". Saved.";
+            });
+            panel.Controls.Add(box);
+        }
+        panel.Controls.Add(screenLabel);
+        page.Controls.Add(panel);
+        return page;
+    }
+    // Steam copies start through Steam, so the launch options and the overlay still apply; another copy (GOG)
+    // starts from the folder Install mod used, or one the player picks now.
+    void PlayGame()
+    {
+        if(Process.GetProcessesByName(GameProcess).Length>0) { status.Text="SpaceBourne 2 is already running."; return; }
+        var steam=GameInstall.FindGame();
+        var folder=settings.GameFolder!="" && GameInstall.IsGame(settings.GameFolder) ? settings.GameFolder : steam;
+        if(folder==null)
+        {
+            using var dialog=new FolderBrowserDialog { Description="Select the SpaceBourne 2 folder (the one that contains SB2)", UseDescriptionForTitle=true };
+            if(dialog.ShowDialog(this)!=DialogResult.OK) return;
+            if(!GameInstall.IsGame(dialog.SelectedPath)) throw new IOException(@"That folder is not SpaceBourne 2 (there is no SB2\Binaries\Win64\SB2-Win64-Shipping.exe inside).");
+            folder=dialog.SelectedPath; settings.GameFolder=folder; Save();
+        }
+        if(steam!=null && string.Equals(Path.GetFullPath(folder).TrimEnd('\\'),Path.GetFullPath(steam).TrimEnd('\\'),StringComparison.OrdinalIgnoreCase))
+            Process.Start(new ProcessStartInfo("steam://rungameid/1646850") { UseShellExecute=true });
+        else
+        {
+            var exe=Path.Combine(folder,"SpaceBourne2.exe");
+            if(!File.Exists(exe)) exe=Path.Combine(GameInstall.Win64(folder),"SB2-Win64-Shipping.exe");
+            Process.Start(new ProcessStartInfo(exe) { UseShellExecute=true, WorkingDirectory=Path.GetDirectoryName(exe)! });
+        }
+        status.Text="Starting SpaceBourne 2… Get in your ship, then click ARM (if it isn't armed already).";
+    }
+    // Once per start: asks GitHub for the latest release and shows a link when it is newer than this one.
+    async Task CheckForUpdate()
+    {
+        try
+        {
+            using var http=new HttpClient { Timeout=TimeSpan.FromSeconds(10) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("SB2-HOTAS/"+Application.ProductVersion);
+            var json=await http.GetStringAsync("https://api.github.com/repos/hubertdungen/SpaceBourne2-HOTAS/releases/latest");
+            using var doc=System.Text.Json.JsonDocument.Parse(json);
+            var tag=doc.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v','V');
+            if(tag is null || !Version.TryParse(tag,out var latest) || !Version.TryParse(Application.ProductVersion,out var mine) || latest<=mine) return;
+            updateLink.Text=$"SB2 HOTAS {tag} is out: click here to download it";
+            updateLink.Visible=true;
+        }
+        catch { }   // offline or GitHub unreachable: no news is fine
+    }
+    // A failure here must never disarm flight, so it only shows on the tab.
+    void UpdateScreens()
+    {
+        try { screenLabel.Text=screens.Tick(spanCheck.Checked,fovCheck.Checked,hudCheck.Checked,GameProcess); }
+        catch(Exception e) { screenLabel.Text="Triple screen: "+e.Message; }
+    }
     void Disarm()
     {
         armed=false; armButton.Text="ARM"; reverseToggled=false;
@@ -184,6 +269,7 @@ internal sealed class BridgeForm : Form
         }
         settings.HeadEnabled=headCheck.Checked;
         settings.TurnRate=(double)turnRate.Value;
+        settings.SpanScreens=spanCheck.Checked; settings.WideFov=fovCheck.Checked; settings.CentreHud=hudCheck.Checked;
         settings.Save(profilePath);
     }
     void UpdateRows()
@@ -360,6 +446,9 @@ internal sealed class BridgeForm : Form
         var name=Path.GetFileNameWithoutExtension(dialog.FileName);
         if(Settings.IsFullProfile(dialog.FileName))
         {
+            // Screens belong to this PC, not to the controllers: keep the current triple-screen choices.
+            imported.SpanScreens=spanCheck.Checked; imported.WideFov=fovCheck.Checked; imported.CentreHud=hudCheck.Checked;
+            imported.GameFolder=settings.GameFolder;
             settings=imported;
             buttonGrid.Rows.Clear();
             foreach(var b in settings.Buttons) buttonGrid.Rows.Add(b.Name,"","",b.Output,b.Mode);
@@ -398,6 +487,7 @@ internal sealed class BridgeForm : Form
         var game=PickGame("Install the mod"); if(game==null) return;
         if(Process.GetProcessesByName(GameProcess).Length>0) throw new IOException("Quit SpaceBourne 2 before installing.");
         GameInstall.Install(game,GameInstall.PackageRoot,AppContext.BaseDirectory);
+        settings.GameFolder=game; Save();   // the Play button starts this copy
         status.Text=sdl ? $"Mod installed in {game}. Start the game, get in your ship and click ARM." : $"Mod installed in {game}. Restart the bridge to use your controllers.";
     }
     void UninstallMod()
@@ -488,6 +578,7 @@ internal sealed class BridgeForm : Form
     void Poll()
     {
         if(closing) return;
+        if(ticks%60==0) UpdateScreens();   // about once a second
         if(sdl) { Sdl.SDL_PumpEvents(); Sdl.SDL_JoystickUpdate(); }   // without SDL there are no devices, but head tracking still runs
         var lines=new List<string>();
         foreach(var d in devices)

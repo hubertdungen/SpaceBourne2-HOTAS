@@ -5,7 +5,8 @@
 Fly SpaceBourne 2 like a proper space sim. This mod supports:
 
 - your joystick, throttle and rudder pedals, a full HOTAS, or a HOSAS (two sticks) — anything Windows sees as a game controller;
-- head tracking (OpenTrack), to look around the cockpit.
+- head tracking (OpenTrack), to look around the cockpit;
+- triple monitors and ultrawide screens, with a proper wide view and the HUD on the centre screen.
 
 The game executable is never modified, and you can remove everything with one click.
 
@@ -18,6 +19,7 @@ The game executable is never modified, and you can remove everything with one cl
 - **Analog flight.** Pitch, roll, yaw, throttle, strafe and lift, each on any axis of any controller. You can mix devices: a stick from one brand, pedals from another.
 - **Head tracking.** OpenTrack moves your head in the cockpit. It works with a plain webcam, so you don't need special hardware.
 - **Look axes.** No head tracker? Put Look Yaw / Look Pitch on a mini-stick to look around.
+- **Triple screen and ultrawide.** Stretch the game over three monitors without NVIDIA Surround or AMD Eyefinity, mixed resolutions included. The view widens properly (Hor+) and the HUD stays on the centre screen.
 - **Throttle modes.** Choose between:
   - forward only (0–100%);
   - full range with stop in the middle;
@@ -47,6 +49,8 @@ Nothing else: no .NET, no mod manager. The download already includes everything,
 
 That's it. **Uninstall mod…** puts the game back exactly as it was. If you already use UE4SS for other mods, SB2 HOTAS reuses it and doesn't touch your other mods.
 
+**Updating.** When a new version is out, the bridge shows a link at the bottom of its window that opens the download page. (It asks GitHub once when it starts, and sends nothing about you.) Extract the new zip, open its bridge and click **Install mod…** again. Your controller setup is kept, because it's saved in `%LOCALAPPDATA%\SB2HOTAS`, not next to the program.
+
 ## First flight (about 5 minutes)
 
 All of this happens in the bridge window. The **NEXT STEP** line at the top of the **Axis monitor** always tells you what's missing.
@@ -60,7 +64,7 @@ All of this happens in the bridge window. The **NEXT STEP** line at the top of t
 3. **Calibrate axes.** Move every assigned axis end to end, centre the stick and pedals, and click **Finish**. You can do all axes in one go, or one at a time.
 4. **Check directions.** Watch the **Normalized** line in the Axis monitor. If something goes the wrong way, tick **Invert** for it.
 5. **Buttons.** On the Buttons tab, select an action, click **Detect input**, and press the button you want for it.
-6. Start the game, click **ARM** in the bridge, and fly.
+6. Click **▶ Play SpaceBourne 2** (or start the game the usual way), click **ARM** in the bridge, and fly.
 
 ## The controls, explained
 
@@ -184,6 +188,44 @@ Tips:
 - OpenTrack's **Mapping** curves shape how far the view turns for a given head turn. Gentle curves feel best.
 - Head tracking works in the cockpit view only.
 
+## Triple screen and ultrawide
+
+Play on three monitors (or two, or five) as one wide screen, without NVIDIA Surround or AMD Eyefinity. It helps a single ultrawide monitor too.
+
+- **One wide window.** The bridge stretches the game's borderless window over all your monitors.
+- **A proper wide view (Hor+).** On its own, SpaceBourne 2 keeps the same horizontal view on any screen shape, so a very wide window would only zoom the picture in and crop the top and bottom. The mod widens the view instead. The centre monitor looks just like a normal 16:9 screen, and the side monitors show more of space around it.
+- **HUD on the centre monitor.** The ship panel, messages, warnings and main menu move to the centre monitor, where you can read them, instead of being pushed out to the far edges. Target markers and the crosshair still cover every monitor, so they stay on top of what they point at.
+
+### Set up your monitors, once
+
+1. **Give them the same height.** Three identical monitors are already fine. With mixed monitors, such as 1080p sides next to a 1440p centre, run the side monitors at 2560×1440 with NVIDIA DSR/DLDSR:
+   1. NVIDIA Control Panel → **Manage 3D settings** → **Global Settings** → **DSR - Factors**: enable **1.78x** (it may read *1.78x DL*). Click **Apply**.
+   2. Windows Settings → **System** → **Display**: select each side monitor and set **Display resolution** to **2560×1440**.
+
+   AMD's *Virtual Super Resolution* does the same, or make a custom resolution with your graphics driver.
+2. **Line them up.** In Windows Settings → **System** → **Display**, drag the monitors into one row with their top edges aligned. Keep the centre monitor as your main display.
+
+### Play
+
+1. In SpaceBourne 2's settings, set **Display Mode** to **Windowed Fullscreen** (once).
+2. In the bridge, open the **Triple screen** tab and tick **Stretch the game over all my monitors**. This also ticks the other two boxes. The bridge saves your choice, and its status line confirms it.
+3. Start the game. Within a second it spreads over all your monitors.
+
+The tab lists the monitors it found and warns you when their heights don't match. Untick the box to put the game back on one monitor. None of this needs ARM.
+
+All three boxes start unticked, so nothing changes until you turn it on. The other two also work on their own:
+
+- **Wider view on wide screens** is the Hor+ fix. It also works on a single ultrawide (21:9, 32:9) or a Surround / Eyefinity screen, with or without the first box.
+- **Keep the HUD and menus on the centre monitor**: untick it if you'd rather have the HUD spread over all the screens.
+
+Good to know:
+
+- Three 1440p monitors are about three times the pixels of one, so expect a lower frame rate. The game's resolution scale helps.
+- It's one picture over all the monitors, so there's no bezel correction. Angle the side monitors towards you.
+- With head tracking, flatten OpenTrack's **yaw** curve: you already turn your head to look at a side monitor, so the in-game view shouldn't turn as well.
+- Target markers and the crosshair stay spread over every monitor on purpose: they sit on top of what they point at.
+- Tested on a 1920×1080 | 2560×1440 | 1920×1080 row (6400×1440) on Windows 11. On Linux the window stretching hasn't been tested yet.
+
 ## Linux / Steam Deck (Proton, experimental)
 
 SpaceBourne 2 runs on Linux through Steam's Proton, and so does SB2 HOTAS. The bridge runs inside the game's Proton prefix, next to the game.
@@ -286,6 +328,7 @@ The mod has two parts:
 
 - **Bridge** (`bridge\SB2-HOTAS.exe`). A small Windows app that reads your controllers (through the SDL2 library that ships with the game) and OpenTrack (over UDP). It writes what it reads to `%LOCALAPPDATA%\SB2HOTAS\state.txt` 60 times a second.
 - **Mod** (a [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) Lua mod). Inside the game, it reads that file and steers the ship through the game's own flight code, and moves the cockpit camera with your head. It uses no memory offsets and no executable patches, and it never touches your saves.
+- **Triple screen.** The bridge moves and resizes the game's borderless window over your monitors, the way dragging it would, and writes your choices to `screen.txt`. The mod's `screen.lua` then widens the camera's field of view to match the window (Hor+, smoothed so the game's tiny FOV wobble doesn't shimmer), and anchors the HUD widgets to the centre monitor.
 
 ## Credits and license
 

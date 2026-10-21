@@ -52,6 +52,13 @@ public sealed class Settings
     public bool HeadEnabled { get; set; } = true;
     public List<ButtonBinding> Buttons { get; set; } = GameActions();
     public double TurnRate { get; set; } = 55;
+    // Triple screen tab: Screens.cs stretches the game window; the mod's screen.lua does the FOV and the HUD.
+    // The game folder picked in Install mod (GOG or another non-Steam copy), for the Play button. "" = Steam.
+    public string GameFolder { get; set; } = "";
+    // All off by default; ticking SpanScreens in the bridge ticks the other two as well.
+    public bool SpanScreens { get; set; }
+    public bool WideFov { get; set; }
+    public bool CentreHud { get; set; }
     // SpaceBourne 2's ship actions with their default keys, so players only have to detect the button.
     public static List<ButtonBinding> GameActions() =>
     [

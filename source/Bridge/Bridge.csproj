@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>SB2-HOTAS</AssemblyName>
     <!-- The one place the release version lives: Package.ps1 and the window title read it. -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
   <ItemGroup>
