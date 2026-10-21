@@ -56,6 +56,7 @@ internal sealed class BridgeForm : Form
         Directory.CreateDirectory(Data.Dir);
         settings=Settings.Load(profilePath);
         Text=$"SpaceBourne 2 HOTAS {Application.ProductVersion} — joystick, pedals & head tracking";
+        try { Icon=Icon.ExtractAssociatedIcon(Environment.ProcessPath!); } catch { }   // the exe's own icon, for the title bar and taskbar
         Size=new Size(1100,770); MinimumSize=new Size(1000,700); StartPosition=FormStartPosition.CenterScreen;
         Font=new Font("Segoe UI",10);
         var layout=new TableLayoutPanel { Dock=DockStyle.Fill, Padding=new Padding(16), RowCount=6, ColumnCount=1 };

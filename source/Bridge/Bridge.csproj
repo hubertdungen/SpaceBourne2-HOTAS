@@ -9,6 +9,7 @@
     <!-- The one place the release version lives: Package.ps1 and the window title read it. -->
     <Version>0.2.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <ApplicationIcon>sb2hotas.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <!-- Controller templates sit next to the exe (outside the single-file bundle) for "Import profile". -->

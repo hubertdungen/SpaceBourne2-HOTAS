@@ -43,7 +43,7 @@ Nothing else: no .NET, no mod manager. The download already includes everything,
 
 ## Install (Windows, about 2 minutes)
 
-1. Download `SB2-HOTAS-x.y.z.zip` from **[Releases](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases)** and extract it somewhere you keep things, such as `Documents`. Not inside the game folder.
+1. Download `SB2-HOTAS-x.y.z.zip` from the **[latest release](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest)** and extract it somewhere you keep things, such as `Documents`. Not inside the game folder.
 2. Open `bridge\SB2-HOTAS.exe`. If Windows SmartScreen warns you, click **More info → Run anyway**; it warns because the app is new and not code-signed.
 3. Click **Install mod…**. The bridge finds the Steam copy of the game by itself. For GOG or another location, answer **No** and pick the game folder.
 
