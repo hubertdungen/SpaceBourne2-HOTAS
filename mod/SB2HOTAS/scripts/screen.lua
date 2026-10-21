@@ -6,6 +6,9 @@
 --   left width   that monitor's slice of the window, as fractions; width 0 = a centred 16:9 slice.
 -- Without the file (bridge never opened) nothing changes. Each fix switches itself off if the game changes
 -- under it, and neither ever touches flight.
+-- Never keep a game object from one call to the next: once the game destroys it (loading a save, changing area),
+-- UE4SS can't always tell, and touching it crashes the game. Only addresses are kept; objects come fresh from the
+-- game instance and the engine's default objects, which last as long as the game.
 local Config = require("config")
 local M = {}
 local WIDE = 16 / 9
@@ -18,11 +21,11 @@ local SIZED = {W_Main_Menu_C = true, Pause_Menu_C = true, Ship_MainWidget_C = tr
 -- These draw things where they are on screen (target markers, the aim crosshair, tooltips at the mouse), so they
 -- must keep covering every monitor.
 local KEEP = {MainIndicatorHUD_C = true, Test_Crosshair_C = true, SMW_ToolTipHolder_C = true}
-local wholeWindow = {}  -- widgets the game sized to the whole window: address -> true
+local wholeWindow = {}  -- addresses of widgets the game sized to the whole window
 local opts = {fov = false, hud = false, left = 0, width = 0}   -- all off until the bridge's tab turns them on
-local off = {}         -- fixes that hit an error: name -> true
-local moved = {}       -- widgets we put on the centre monitor: address -> {widget, left, width, sized}
-local layout, pc, locked, lastNote
+local off = {}          -- fixes that hit an error: name -> true
+local moved = {}        -- addresses of widgets we put on the centre monitor -> {left, width, sized}
+local gameInstance, statics, layout, pcKey, locked, lastNote
 local smooth, smoothAt = nil, 0   -- the game's own FOV, smoothed (see fov())
 
 local function valid(o) return o ~= nil and o:IsValid() end
@@ -48,22 +51,26 @@ local function readOptions()
     opts.fov, opts.hud, opts.left, opts.width = v[1] == 1, v[2] == 1, v[3], v[4]
 end
 
-local nextSearch = 0
+-- The local player's controller, fresh on every call. The game instance and the default objects last as long as
+-- the game, so those are the only objects worth keeping.
 local function controller()
-    if valid(pc) then return pc end
-    pc, locked, smooth = nil, nil, nil
-    if os.clock() < nextSearch then return nil end   -- loading or main menu: look once a second, not every frame
-    nextSearch = os.clock() + 1
-    for _, c in ipairs(FindAllOf("PlayerController") or {}) do
-        if valid(c) and c:IsLocalPlayerController() then pc = c; break end
+    if not gameInstance then
+        local g = FindFirstOf("GameInstance")
+        if not valid(g) then return nil end
+        gameInstance = g
+        statics = StaticFindObject("/Script/Engine.Default__GameplayStatics")
+        layout = StaticFindObject("/Script/UMG.Default__WidgetLayoutLibrary")
+        if not valid(statics) or not valid(layout) then error("engine libraries not found") end
     end
-    return pc
+    local c = statics:GetPlayerController(gameInstance, 0)
+    if not valid(c) then pcKey = nil; return nil end
+    local key = c:GetAddress()
+    if key ~= pcKey then pcKey, locked, smooth = key, nil, nil end   -- a new controller has its own camera
+    return c
 end
 
-local function viewport()
-    layout = layout or StaticFindObject("/Script/UMG.Default__WidgetLayoutLibrary")
-    if not valid(layout) then error("UMG layout library not found") end
-    local size = layout:GetViewportSize(pc)
+local function viewport(c)
+    local size = layout:GetViewportSize(c)
     return size.X, size.Y
 end
 
@@ -78,7 +85,7 @@ local function fov()
     local pov = camera.CameraCachePrivate.POV
     local base = pov.FOV
     if type(base) ~= "number" then error("incompatible game version (camera FOV)") end
-    local w, h = viewport()
+    local w, h = viewport(c)
     local aspect = h > 0 and w / h or WIDE
     if pov.bConstrainAspectRatio and pov.AspectRatio > 0 then aspect = math.min(aspect, pov.AspectRatio) end
     local player = c.Player
@@ -112,61 +119,62 @@ local function fov()
     end
 end
 
-local function slice()
+local function slice(c)
     if opts.width > 0 then return opts.left, opts.width end
-    local w, h = viewport()
+    local w, h = viewport(c)
     if w <= 0 or h <= 0 then return 0, 1 end
     local width = math.min(1, WIDE * h / w)
     return (1 - width) / 2, width
 end
 
-local function restore(m)
-    if not valid(m.widget) then return end
+-- Puts a widget back the way the game had it. `widget` is always a fresh object, never one we kept.
+local function restore(widget, m, c)
     if m.sized then
-        local w, h = viewport()
-        local scale = layout:GetViewportScale(pc)
+        local w, h = viewport(c)
+        local scale = layout:GetViewportScale(c)
         if scale > 0 then
-            m.widget:SetDesiredSizeInViewport({X = w / scale, Y = h / scale})
-            m.widget:SetPositionInViewport({X = 0, Y = 0}, true)
+            widget:SetDesiredSizeInViewport({X = w / scale, Y = h / scale})
+            widget:SetPositionInViewport({X = 0, Y = 0}, true)
         end
     else
-        m.widget:SetAnchorsInViewport(FULL)
+        widget:SetAnchorsInViewport(FULL)
     end
 end
 
--- Full-screen widgets (HUD, menus) get anchored to the centre monitor's slice. Widgets the game places itself
--- (markers, tooltips, anything moved with SetPositionInViewport) keep their spot, except the SIZED menus.
 local logged = {}      -- widget classes already reported in UE4SS.log
 local function report(class, text)
     if not logged[class] then logged[class] = true; print("[SB2HOTAS] Screen: " .. class .. " " .. text .. "\n") end
 end
-local function place(widget, left, width)
+
+-- Full-screen widgets (HUD, menus) get anchored to the centre monitor's slice. Widgets the game places itself
+-- (markers, tooltips, anything moved with SetPositionInViewport) keep their spot, except the SIZED menus.
+local function place(widget, c, left, width)
     local key = widget:GetAddress()
     local mine = moved[key]
     local want = opts.hud and width < .999
     local class = widget:GetClass():GetFName():ToString()
     if KEEP[class] then
-        if mine then restore(mine); moved[key] = nil end
+        if mine then restore(widget, mine, c); moved[key] = nil end
         return
     end
     if SIZED[class] or wholeWindow[key] then
-        if want then report(class, "resized to the centre monitor") end
         if want then
-            local w, h = viewport()
-            local scale = layout:GetViewportScale(pc)
+            report(class, "resized to the centre monitor")
+            local w, h = viewport(c)
+            local scale = layout:GetViewportScale(c)
             if scale <= 0 then return end
             widget:SetDesiredSizeInViewport({X = width * w / scale, Y = h / scale})
             widget:SetPositionInViewport({X = left * w, Y = 0}, true)
-            moved[key] = {widget = widget, left = left, width = width, sized = true}
+            moved[key] = {left = left, width = width, sized = true}
         elseif mine then
-            restore(mine)
+            restore(widget, mine, c)
             moved[key] = nil
         end
         return
     end
     local a = widget:GetAnchorsInViewport()
-    if mine and not (near(a.Minimum.X, mine.left) and near(a.Maximum.X, mine.left + mine.width)) then
-        moved[key], mine = nil, nil                  -- the game has placed it itself since
+    if mine and (mine.sized or not (near(a.Minimum.X, mine.left) and near(a.Maximum.X, mine.left + mine.width))) then
+        moved[key], mine = nil, nil                  -- the game has placed it itself since (or it's another widget)
     end
     local full = a.Minimum.X == 0 and a.Minimum.Y == 0 and a.Maximum.X == 1 and a.Maximum.Y == 1
     if not mine and not full then
@@ -177,27 +185,30 @@ local function place(widget, left, width)
         report(class, "moved to the centre monitor")
         if not mine or not near(mine.left, left) or not near(mine.width, width) then
             widget:SetAnchorsInViewport({Minimum = {X = left, Y = 0}, Maximum = {X = left + width, Y = 1}})
-            moved[key] = {widget = widget, left = left, width = width}
+            moved[key] = {left = left, width = width}
         end
     elseif mine then
-        restore(mine)
+        restore(widget, mine, c)
         moved[key] = nil
     end
 end
 
 local function hud()
-    if not opts.hud then
-        if next(moved) and controller() then
-            for key, m in pairs(moved) do restore(m); moved[key] = nil end
-        end
-        return
-    end
-    if not controller() then return end
-    local left, width = slice()
+    if not opts.hud and next(moved) == nil then return end
+    local c = controller()
+    if not c then return end
+    local left, width = slice(c)
+    local seen = {}
     for _, w in ipairs(FindAllOf("UserWidget") or {}) do
-        if valid(w) and w:IsInViewport() then place(w, left, width) end
+        if valid(w) then
+            local key = w:GetAddress()
+            seen[key] = true
+            if w:IsInViewport() or (moved[key] and not opts.hud) then place(w, c, left, width) end
+        end
     end
-    for key, m in pairs(moved) do if not valid(m.widget) then moved[key] = nil end end
+    -- Widgets that no longer exist: forget them (never touch them), so a new widget at the same address starts clean.
+    for key in pairs(moved) do if not seen[key] then moved[key] = nil end end
+    for key in pairs(wholeWindow) do if not seen[key] then wholeWindow[key] = nil end end
 end
 
 -- Called by the flight hook on every frame of the player's ship, so FOV effects stay smooth in flight.
@@ -211,7 +222,8 @@ function M.start()
             if not opts.hud then return end
             guard("HUD", function()
                 local w = context:get()
-                if valid(w) and controller() then place(w, slice()) end
+                local c = valid(w) and controller()
+                if c then place(w, c, slice(c)) end
             end)
         end)
     end
@@ -220,10 +232,11 @@ function M.start()
         if not opts.hud then return end
         guard("HUD", function()
             local w = context:get()
-            if not valid(w) or not controller() then return end
+            local c = valid(w) and controller()
+            if not c then return end
             local s = size:get()
-            local vw, vh = viewport()
-            local scale = layout:GetViewportScale(pc)
+            local vw, vh = viewport(c)
+            local scale = layout:GetViewportScale(c)
             if scale > 0 and math.abs(s.X - vw / scale) < 2 and math.abs(s.Y - vh / scale) < 2 then
                 wholeWindow[w:GetAddress()] = true
                 report(w:GetClass():GetFName():ToString() .. "+", "is sized to the whole window by the game")

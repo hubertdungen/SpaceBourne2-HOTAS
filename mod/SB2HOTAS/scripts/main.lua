@@ -14,7 +14,10 @@ local BLOCKERS = {"DisableALL","DisableMovement?","DisableAxisMovement","CursorO
     "PlayerEnteringSurface","CapitalMode","TakingOff","VerticleTakeOff","EngineOff?"}
 -- Also used below: ship SpringArm, SixDOFMovement (SetForward/Right/UpInput), MoveRoll, ThrustLocked, UpdateVectors(),
 -- "CockpitOn?", Controller; cockpit ShipRef, Camera, ConsoleOn, ServiceOpened.
-local lastFlight, cameraState, failed = nil, nil, false
+-- Never keep a game object from one tick to the next: once the game destroys it (loading a save, changing ship),
+-- UE4SS can't always tell, and touching it crashes the game. Only addresses are kept, and objects are only
+-- touched through the hook that hands them over.
+local flying, cameraState, failed = nil, nil, false   -- flying: address of the ship we steer
 local shipWatch, headWatch = P.watchdog(), P.watchdog()
 local hookedShip, hookedCamera = false, false
 local lastStatus = ""
@@ -23,7 +26,7 @@ local function status(message)
     if message == lastStatus then return end
     lastStatus=message
     print("[SB2HOTAS] " .. message .. "\n")
-    local f=io.open(Config.status, "w")
+    local f=io.open(Config.status,"w")
     if f then f:write(message); f:close() end
 end
 local lastFrame
@@ -36,29 +39,30 @@ local function read()
     -- A failed read (bridge replacing the file) reuses the last frame; its unchanged seq still trips the watchdog.
     return lastFrame
 end
-local function releaseFlight()
-    if valid(lastFlight) then
-        local m=lastFlight.SixDOFMovement
-        if valid(m) then
-            m:SetForwardInput(0); m:SetRightInput(0); m:SetUpInput(0)
-        end
-        lastFlight.MoveRoll=0
+-- Hands the ship back to the game, if it's the one we steer. `ship` comes from the current hook.
+local function releaseFlight(ship)
+    if not flying or ship:GetAddress()~=flying then return end
+    local m=ship.SixDOFMovement
+    if valid(m) then
+        m:SetForwardInput(0); m:SetRightInput(0); m:SetUpInput(0)
     end
-    lastFlight=nil
+    ship.MoveRoll=0
+    flying=nil
 end
-local function releaseCamera()
-    if cameraState and valid(cameraState.camera) then
-        cameraState.camera:K2_SetRelativeRotation(cameraState.rotation,false,{},false)
-        cameraState.camera:K2_SetRelativeLocation(cameraState.location,false,{},false)
-    end
+-- Puts the cockpit camera back where the game had it, if it's the one we moved. `cam` comes from the current hook.
+local function releaseCamera(cam)
+    if not cameraState or cam:GetAddress()~=cameraState.key then return end
+    cam:K2_SetRelativeRotation(cameraState.rotation,false,{},false)
+    cam:K2_SetRelativeLocation(cameraState.location,false,{},false)
     cameraState=nil
 end
-local function protect(fn)
-    if failed then return end
+-- After an error the mod stops, but each hook still hands its object back to the game (cleanup).
+local function protect(fn,cleanup)
+    if failed then pcall(cleanup); return end
     local ok,err=pcall(fn)
     if not ok then
         failed=true
-        pcall(releaseFlight); pcall(releaseCamera)
+        pcall(cleanup)
         status("ERROR: mod disabled until the game restarts: "..tostring(err))
     end
 end
@@ -75,19 +79,20 @@ local function allowed(ship)
     return true
 end
 local function flight(context,delta)
+    local function cleanup() local s=context:get(); if valid(s) then releaseFlight(s) end end
     protect(function()
         local ship=context:get()
-        if not valid(ship) or not ship:IsPlayerControlled() then return end
+        if not valid(ship) then return end
+        if not ship:IsPlayerControlled() then releaseFlight(ship); return end   -- the ship we steered lost its pilot
         Screen.frame()   -- has its own error guard, so it can never switch flight off
         local dt=tonumber(delta:get()) or 0
         local f=read()
         if not shipWatch(f,dt) or not f.flight or not allowed(ship) then
-            releaseFlight()
+            releaseFlight(ship)
             status("Connected; flight on hold (bridge disarmed, menu, or automatic manoeuvre).")
             return
         end
-        if lastFlight and lastFlight:GetAddress()~=ship:GetAddress() then releaseFlight() end
-        lastFlight=ship
+        flying=ship:GetAddress()   -- a ship we flew before and no longer see is left alone: it may be gone
         dt=P.clamp(dt,0,.05)
         local arm=ship.SpringArm
         local movement=ship.SixDOFMovement
@@ -110,32 +115,40 @@ local function flight(context,delta)
         -- set (right = -1, left = +1); the next ship tick smooths it and rolls ship and aim arm.
         if has.roll then ship.MoveRoll=-f.roll end
         status("Analog flight active.")
-    end)
+    end,cleanup)
 end
 local function head(context,delta)
+    local function cleanup()
+        local cockpit=context:get()
+        local cam=valid(cockpit) and cockpit.Camera or nil
+        if valid(cam) then releaseCamera(cam) end
+    end
     protect(function()
         local cockpit=context:get()
         if not valid(cockpit) then return end
+        local cam=cockpit.Camera
+        if not valid(cam) then return end
         local ship=cockpit.ShipRef
-        if not valid(ship) or not ship:IsPlayerControlled() then return end
+        if not valid(ship) or not ship:IsPlayerControlled() then releaseCamera(cam); return end
         local dt=tonumber(delta:get()) or 0
         local f=read()
         if not headWatch(f,dt) or not f.head or not ship["CockpitOn?"] or not allowed(ship)
             or cockpit.ConsoleOn or cockpit.ServiceOpened then
-            releaseCamera(); return
+            releaseCamera(cam); return
         end
-        local cam=cockpit.Camera
-        if not valid(cam) then return end
-        if cameraState and cameraState.camera:GetAddress()~=cam:GetAddress() then releaseCamera() end
+        -- The camera's own pose is remembered per camera and per controller: after loading a save, a new camera can
+        -- get the old one's address, and a new controller tells the two apart.
+        local key,owner=cam:GetAddress(),ship.Controller:GetAddress()
+        if cameraState and (cameraState.key~=key or cameraState.owner~=owner) then cameraState=nil end
         if not cameraState then
             local r,l=cam.RelativeRotation,cam.RelativeLocation
-            cameraState={camera=cam,rotation={Pitch=r.Pitch,Yaw=r.Yaw,Roll=r.Roll},location={X=l.X,Y=l.Y,Z=l.Z}}
+            cameraState={key=key,owner=owner,rotation={Pitch=r.Pitch,Yaw=r.Yaw,Roll=r.Roll},location={X=l.X,Y=l.Y,Z=l.Z}}
         end
         local r,l=cameraState.rotation,cameraState.location
         cam:K2_SetRelativeRotation({Pitch=r.Pitch+P.clamp(f.headPitch,-75,75),Yaw=r.Yaw+P.clamp(f.headYaw,-110,110),Roll=r.Roll+P.clamp(f.headRoll,-35,35)},false,{},false)
         -- OpenTrack X=right,Y=up,Z=back; UE X=forward,Y=right,Z=up, both in cm.
         cam:K2_SetRelativeLocation({X=l.X-P.clamp(f.z,-20,20),Y=l.Y+P.clamp(f.x,-20,20),Z=l.Z+P.clamp(f.y,-15,15)},false,{},false)
-    end)
+    end,cleanup)
 end
 status("Loaded. Waiting for a player-controlled ship.")
 local queued=false
@@ -153,7 +166,7 @@ LoopAsync(1000,function()
                 RegisterHook(COCKPIT..":ReceiveTick",head); hookedCamera=true
                 print("[SB2HOTAS] Cockpit hook registered\n")
             end
-        end)
+        end,function() end)
         queued=false
     end)
     return false
