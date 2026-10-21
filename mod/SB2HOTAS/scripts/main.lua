@@ -79,6 +79,7 @@ local function allowed(ship)
     return true
 end
 local function flight(context,delta)
+    pcall(Screen.tick)   -- once a second, from any ship: HUD placement and FOV outside the cockpit
     local function cleanup() local s=context:get(); if valid(s) then releaseFlight(s) end end
     protect(function()
         local ship=context:get()
@@ -87,9 +88,11 @@ local function flight(context,delta)
         Screen.frame()   -- has its own error guard, so it can never switch flight off
         local dt=tonumber(delta:get()) or 0
         local f=read()
-        if not shipWatch(f,dt) or not f.flight or not allowed(ship) then
+        local fresh=shipWatch(f,dt)
+        if not fresh or not f.flight or not allowed(ship) then
             releaseFlight(ship)
-            status("Connected; flight on hold (bridge disarmed, menu, or automatic manoeuvre).")
+            status(fresh and "Connected; flight on hold (bridge disarmed, menu, or automatic manoeuvre)."
+                or "Waiting for the bridge: no new frames (open the SB2 HOTAS bridge and click ARM).")
             return
         end
         flying=ship:GetAddress()   -- a ship we flew before and no longer see is left alone: it may be gone
@@ -118,6 +121,7 @@ local function flight(context,delta)
     end,cleanup)
 end
 local function head(context,delta)
+    pcall(Screen.tick)
     local function cleanup()
         local cockpit=context:get()
         local cam=valid(cockpit) and cockpit.Camera or nil
@@ -151,24 +155,71 @@ local function head(context,delta)
     end,cleanup)
 end
 status("Loaded. Waiting for a player-controlled ship.")
-local queued=false
-LoopAsync(1000,function()
-    if failed or (hookedShip and hookedCamera) then return true end
-    if queued then return false end
-    queued=true
-    ExecuteInGameThread(function()
-        protect(function()
-            if not hookedShip and valid(StaticFindObject(SHIP..":ReceiveTick")) then
-                RegisterHook(SHIP..":ReceiveTick",flight); hookedShip=true
-                print("[SB2HOTAS] Flight hook registered\n")
-            end
-            if not hookedCamera and valid(StaticFindObject(COCKPIT..":ReceiveTick")) then
-                RegisterHook(COCKPIT..":ReceiveTick",head); hookedCamera=true
-                print("[SB2HOTAS] Cockpit hook registered\n")
-            end
-        end,function() end)
-        queued=false
+-- The ship and cockpit classes only exist once the game has loaded them, so the hooks go in as soon as they do.
+local function tryHooks()
+    if failed or (hookedShip and hookedCamera) then return end
+    protect(function()
+        if not hookedShip and valid(StaticFindObject(SHIP..":ReceiveTick")) then
+            RegisterHook(SHIP..":ReceiveTick",flight); hookedShip=true
+            print("[SB2HOTAS] Flight hook registered\n")
+        end
+        if not hookedCamera and valid(StaticFindObject(COCKPIT..":ReceiveTick")) then
+            RegisterHook(COCKPIT..":ReceiveTick",head); hookedCamera=true
+            print("[SB2HOTAS] Cockpit hook registered\n")
+        end
+    end,function() end)
+end
+-- Menus have no ship ticking, so Screen also follows the game's own calls that put a widget on screen, size, move
+-- or anchor it: right after the game does, Screen puts that widget on the centre monitor, before it is ever drawn
+-- elsewhere. These are engine functions, hooked once; the game calls them on the game thread.
+-- true: only widgets Screen placed itself (the game calls these a lot); false: any widget.
+local WIDGET_CALLS={AddToViewport=false,AddToPlayerScreen=false,SetDesiredSizeInViewport=false,
+    SetPositionInViewport=true,SetAnchorsInViewport=true}
+local widgetsHooked=false
+local function hookWidgets()
+    if widgetsHooked then return end
+    widgetsHooked=true
+    for name,onlyMoved in pairs(WIDGET_CALLS) do
+        local fn="/Script/UMG.UserWidget:"..name
+        local sizing=name=="SetDesiredSizeInViewport"   -- its size tells Screen which menus fill the whole window
+        local ok,err=pcall(function()
+            if not valid(StaticFindObject(fn)) then error("not found") end
+            RegisterHook(fn,function() end,function(context,size)
+                pcall(Screen.widget,context:get(),onlyMoved,sizing and size or nil)
+            end)
+        end)
+        print("[SB2HOTAS] Screen "..(ok and "follows " or "can't follow ")..fn..(ok and "" or ": "..tostring(err)).."\n")
+    end
+end
+-- The main menu's level Blueprint ticks every frame, so it drives Screen there too (once a second): the window
+-- may be stretched after the menu is up. Any level whose Blueprint has a Tick gets this, one hook per level class.
+local levelBase,levelHooked=nil,{}
+local function hookLevelTick(actor)
+    levelBase=levelBase or StaticFindObject("/Script/Engine.LevelScriptActor")
+    if not valid(levelBase) or not valid(actor) or not actor:IsA(levelBase) then return end
+    local path=actor:GetClass():GetFullName():match("^%S+%s+(/Game/.+)$")
+    if not path or levelHooked[path]~=nil then return end
+    local fn=path..":ReceiveTick"
+    levelHooked[path]=valid(StaticFindObject(fn)) and pcall(RegisterHook,fn,function() pcall(Screen.tick) end) or false
+    if levelHooked[path] then print("[SB2HOTAS] Screen also ticks with "..fn.."\n") end
+end
+-- Try on the game thread whenever an actor starts or a map's game state is set up. A background loop
+-- (LoopAsync) is only the fallback for UE4SS builds without these hooks: Lua must never run on two threads at once.
+local onGameThread=false
+if type(RegisterBeginPlayPostHook)=="function" and pcall(RegisterBeginPlayPostHook,function(context)
+    tryHooks(); hookWidgets(); pcall(hookLevelTick,context:get()); pcall(Screen.tick)
+end) then onGameThread=true end
+if type(RegisterInitGameStatePostHook)=="function" and pcall(RegisterInitGameStatePostHook,function()
+    tryHooks(); hookWidgets(); pcall(Screen.tick)
+end) then onGameThread=true end
+if not onGameThread then
+    local queued=false
+    LoopAsync(1000,function()
+        if failed or (hookedShip and hookedCamera) then return true end
+        if queued then return false end
+        queued=true
+        ExecuteInGameThread(function() tryHooks(); queued=false end)
+        return false
     end)
-    return false
-end)
+end
 Screen.start()

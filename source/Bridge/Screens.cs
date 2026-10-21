@@ -97,7 +97,7 @@ internal sealed class Screens
         var text = $"{(fov ? 1 : 0)} {(hud ? 1 : 0)} {N(left)} {N(width)}";
         if (text == written) return;
         var path = Data.PathOf("screen.txt");
-        try { File.WriteAllText(path + ".tmp", text); File.Move(path + ".tmp", path, true); written = text; }
+        try { Data.Replace(path, text); written = text; }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }   // tried again next second
     }
 

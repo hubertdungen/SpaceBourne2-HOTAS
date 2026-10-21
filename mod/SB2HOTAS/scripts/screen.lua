@@ -14,17 +14,16 @@ local M = {}
 local WIDE = 16 / 9
 local FULL = {Minimum = {X = 0, Y = 0}, Maximum = {X = 1, Y = 1}}
 -- SpaceBourne 2 sizes most of its widgets to the whole window itself (SetDesiredSizeInViewport, anchored at the
--- top-left corner) instead of stretching them. These are resized to the centre monitor; the SetDesiredSizeInViewport
--- hook below also spots others that get the whole window.
+-- top-left corner) instead of stretching them. These are resized to the centre monitor.
 local SIZED = {W_Main_Menu_C = true, Pause_Menu_C = true, Ship_MainWidget_C = true, WBP_LogHUD_C = true,
     CPP_WArningWidget_C = true}
 -- These draw things where they are on screen (target markers, the aim crosshair, tooltips at the mouse), so they
 -- must keep covering every monitor.
 local KEEP = {MainIndicatorHUD_C = true, Test_Crosshair_C = true, SMW_ToolTipHolder_C = true}
-local wholeWindow = {}  -- addresses of widgets the game sized to the whole window
 local opts = {fov = false, hud = false, left = 0, width = 0}   -- all off until the bridge's tab turns them on
 local off = {}          -- fixes that hit an error: name -> true
 local moved = {}        -- addresses of widgets we put on the centre monitor -> {left, width, sized}
+local wholeWindow = {}  -- addresses of other widgets the game sized to the whole window: handled like SIZED
 local gameInstance, statics, layout, pcKey, locked, lastNote
 local smooth, smoothAt = nil, 0   -- the game's own FOV, smoothed (see fov())
 
@@ -211,52 +210,64 @@ local function hud()
     for key in pairs(wholeWindow) do if not seen[key] then wholeWindow[key] = nil end end
 end
 
+-- The game just gave `widget` this size: if that is the whole window, it is one of its menus, even if not in SIZED.
+local function learn(widget, c, size)
+    local s = size:get()
+    local w, h = viewport(c)
+    local scale = layout:GetViewportScale(c)
+    if scale > 0 and math.abs(s.X - w / scale) < 2 and math.abs(s.Y - h / scale) < 2 then
+        wholeWindow[widget:GetAddress()] = true
+        report(widget:GetClass():GetFName():ToString() .. "+", "is sized to the whole window by the game")
+    end
+end
+
+-- Everything here runs on the game thread, from the game's own ticks and calls: no LoopAsync. Lua is not safe on
+-- two threads at once, and a background loop next to the per-frame flight hooks crashed the game now and then.
+
 -- Called by the flight hook on every frame of the player's ship, so FOV effects stay smooth in flight.
 function M.frame() guard("FOV", fov) end
 
-function M.start()
-    readOptions()
-    -- New HUD and menu widgets go to the centre monitor as soon as they appear.
-    for _, name in ipairs({"AddToViewport", "AddToPlayerScreen"}) do
-        pcall(RegisterHook, "/Script/UMG.UserWidget:" .. name, function(context)
-            if not opts.hud then return end
-            guard("HUD", function()
-                local w = context:get()
-                local c = valid(w) and controller()
-                if c then place(w, c, slice(c)) end
-            end)
-        end)
-    end
-    -- Learn which widgets the game sizes to the whole window, so menus not listed in SIZED follow too.
-    pcall(RegisterHook, "/Script/UMG.UserWidget:SetDesiredSizeInViewport", function(context, size)
-        if not opts.hud then return end
-        guard("HUD", function()
-            local w = context:get()
-            local c = valid(w) and controller()
-            if not c then return end
-            local s = size:get()
-            local vw, vh = viewport(c)
-            local scale = layout:GetViewportScale(c)
-            if scale > 0 and math.abs(s.X - vw / scale) < 2 and math.abs(s.Y - vh / scale) < 2 then
-                wholeWindow[w:GetAddress()] = true
-                report(w:GetClass():GetFName():ToString() .. "+", "is sized to the whole window by the game")
-            end
-        end)
-    end)
-    local ticks, queued = 0, false
-    LoopAsync(100, function()
-        if queued then return false end
-        queued = true
-        ExecuteInGameThread(function()
-            ticks = ticks + 1
-            pcall(function()
-                if ticks % 10 == 1 then readOptions(); guard("HUD", hud) end
-                guard("FOV", fov)
-            end)
-            queued = false
-        end)
-        return false
-    end)
+-- Moving a widget calls the same engine functions main.lua hooks, so while Screen moves widgets itself, those
+-- hooks must not come back in here.
+local busy = false
+
+-- Called by every ship and cockpit tick, the player's or not, and by the widget hooks: once a second, re-read the
+-- bridge's choices, place the HUD and menus, and keep the FOV right outside the cockpit too.
+local nextTick = 0
+function M.tick()
+    if busy then return end
+    local now = os.clock()
+    if now < nextTick then return end
+    nextTick = now + 1
+    busy = true
+    pcall(readOptions)
+    guard("HUD", hud)
+    guard("FOV", fov)
+    busy = false
 end
+
+-- Called right after the game puts a widget on screen, sizes, moves or anchors it (main.lua hooks those calls), so
+-- a menu lands on the centre monitor at once, even in the main menu where nothing else ticks. `widget` comes from
+-- that hook: it is used now and never kept. `onlyMoved`: the call happens a lot (markers are moved every frame),
+-- so only widgets Screen has placed itself are looked at, to put them back. `size`: the size the game just gave it.
+function M.widget(widget, onlyMoved, size)
+    if busy then return end
+    M.tick()
+    if off.HUD or (not opts.hud and next(moved) == nil) then return end
+    if onlyMoved and not moved[widget:GetAddress()] then return end
+    busy = true
+    guard("HUD", function()
+        if not valid(widget) then return end
+        local c = controller()
+        if not c then return end
+        if size then pcall(learn, widget, c, size) end   -- a hint only: never worth switching the HUD fix off
+        if not widget:IsInViewport() then return end
+        local left, width = slice(c)
+        place(widget, c, left, width)
+    end)
+    busy = false
+end
+
+function M.start() pcall(readOptions) end
 
 return M

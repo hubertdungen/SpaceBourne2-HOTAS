@@ -45,6 +45,7 @@ internal sealed class BridgeForm : Form
     UdpClient? udp;
     double[] pose=new double[6], zero=new double[6];
     long poseTime, sequence;
+    string? frameTrouble;   // why frames don't reach the mod (Data.Replace), shown at the top of the window
     bool armed, calibration, closing, sdl;
     string? learning;
     long learnDeadline;
@@ -683,9 +684,10 @@ internal sealed class BridgeForm : Form
             if(look) lines.Add($"Look:  yaw {lookYaw:0.00}   pitch {lookPitch:0.00}");
             lines.Add("\r\nIn-game mod: "+ReadModStatus());
             lines.Insert(0,"NEXT STEP: "+NextStep()+"\r\n");
+            if(frameTrouble!=null) lines.Insert(0,"⚠ The game gets no controls: "+frameTrouble+"\r\n");
             monitor.Text=string.Join("\r\n",lines);
             headLabel.Text=(fresh ? "OpenTrack OK" : "OpenTrack: no signal")+(tracking||look ? $" · view yaw {head[3]:0}° pitch {head[4]:0}°" : "");
-            if(armed) status.Text=(!focus ? "Armed; waiting for the SpaceBourne 2 window."
+            if(armed) status.Text=frameTrouble!=null ? "⚠ "+frameTrouble : (!focus ? "Armed; waiting for the SpaceBourne 2 window."
                 : flight ? "Armed — Ctrl+Alt+F12 disarms. Flight pauses by itself in menus, warp, landing and docking."
                 : "Armed for head tracking and buttons only.")
                 +(flightCheck.Checked && !flight ? " Flight is OFF until your axes are calibrated: DISARM, then Calibrate axes." : "");
@@ -699,10 +701,12 @@ internal sealed class BridgeForm : Form
         // the mod reading state.txt right now, which Windows reports as "access denied" (not a sharing error).
         try
         {
-            File.WriteAllText(path+".tmp",frame.Serialize());
-            File.Move(path+".tmp",path,true);
+            bool check=sequence%30==0;   // about twice a second, make sure the frame really landed
+            Data.Replace(path,frame.Serialize(),check);
+            if(check) frameTrouble=null;
         }
         catch(DirectoryNotFoundException) { Directory.CreateDirectory(Data.Dir); }
+        catch(StuckFileException e) { frameTrouble=e.Message; }
         catch(Exception e) when (e is IOException or UnauthorizedAccessException) {}
     }
     string ReadModStatus()

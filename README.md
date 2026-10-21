@@ -304,6 +304,10 @@ This path hasn't been tested on real Linux hardware yet. If you try it, a quick 
 
 **"In-game mod" says "no news yet".** UE4SS didn't load the mod. Click **Install mod…** again. On Linux, check the launch option. The log is in `SB2\Binaries\Win64\UE4SS.log` inside the game folder.
 
+**The bridge window takes up to a minute to appear.** That happens the first time a new version runs: your antivirus checks the new `SB2-HOTAS.exe` before letting it start. Later starts are quick.
+
+**The bridge shows your sticks moving, but the ship ignores them.** Look at the top of the bridge window: if it says *"The game gets no controls"*, Windows isn't letting the bridge update its files, usually because an antivirus is watching `SB2-HOTAS.exe`. Allow it in your antivirus and restart the bridge. If "In-game mod" says *"Waiting for the bridge: no new frames"*, the game isn't getting the bridge's updates: restart the bridge.
+
 **Two identical controllers.** They show up as `Name` and `Name #2`. Your settings live in `%LOCALAPPDATA%\SB2HOTAS\profile.json`.
 
 ## Templates

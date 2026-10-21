@@ -9,6 +9,37 @@ public static class Data
 {
     public static readonly string Dir=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"SB2HOTAS");
     public static string PathOf(string name)=>Path.Combine(Dir,name);
+
+    // Replaces a whole file: write a .tmp beside it, then rename that over the old one, so a reader never sees half
+    // a file. On one PC these renames reported success while the old file stayed and the .tmp vanished (only for
+    // files another program had made, and only for the bridge: a security tool, it seems), which froze the game's
+    // controls without a word. So the result can be checked: a file that won't be replaced is deleted and made again,
+    // which cured it there, or else rewritten in place. If nothing lands, StuckFileException says so.
+    public static void Replace(string path,string text,bool check=true)
+    {
+        File.WriteAllText(path+".tmp",text);
+        File.Move(path+".tmp",path,true);
+        if(!check || Holds(path,text)) return;
+        File.Delete(path);
+        File.WriteAllText(path+".tmp",text);
+        File.Move(path+".tmp",path,true);
+        if(Holds(path,text)) return;
+        using(var f=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete))
+            f.Write(System.Text.Encoding.UTF8.GetBytes(text));
+        if(!Holds(path,text)) throw new StuckFileException(path);
+    }
+    // True when the file holds `text`, or can't be read right now (the mod reading it); checked again next time.
+    static bool Holds(string path,string text)
+    {
+        try { return File.ReadAllText(path)==text; }
+        catch(FileNotFoundException) { return false; }
+        catch(Exception e) when (e is IOException or UnauthorizedAccessException) { return true; }
+    }
+}
+
+public sealed class StuckFileException(string path) : IOException(
+    $"Windows won't let the bridge update {Path.GetFileName(path)} in {Path.GetDirectoryName(path)}. An antivirus may be blocking SB2-HOTAS.exe: allow it there, or restart the bridge.")
+{
 }
 
 public sealed class AxisBinding
@@ -100,12 +131,7 @@ public sealed class Settings
         using var doc = JsonDocument.Parse(File.ReadAllText(path), new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
         return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("Buttons", out _);
     }
-    public void Save(string path)
-    {
-        var tmp=path+".tmp";
-        File.WriteAllText(tmp,JsonSerializer.Serialize(this,new JsonSerializerOptions { WriteIndented=true }));
-        File.Move(tmp,path,true);
-    }
+    public void Save(string path)=>Data.Replace(path,JsonSerializer.Serialize(this,new JsonSerializerOptions { WriteIndented=true }));
 }
 
 public sealed class ButtonBinding
