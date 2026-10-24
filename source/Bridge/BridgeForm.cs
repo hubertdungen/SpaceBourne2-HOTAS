@@ -20,7 +20,9 @@ internal sealed class BridgeForm : Form
     int? learningButton;
     readonly HashSet<string> initialButtons=[];
     readonly CheckBox headCheck=new() { Text="Head tracking (OpenTrack) in the cockpit", AutoSize=true };
-    readonly CheckBox flightCheck=new() { Text="Flight axes", AutoSize=true, Checked=true };
+    // Off: SpaceBourne 2 (3.1.0 and later) flies with its own controller support and SB2 HOTAS only does head
+    // tracking and triple screen. The bridge then never opens a controller, so it can't get in the game's way.
+    readonly CheckBox hotasCheck=new() { Text="HOTAS / HOSAS (flight, look axes, buttons)", AutoSize=true };
     readonly CheckBox forwardOnly=new() { Text="Throttle forward only (0…100%)", AutoSize=true };
     readonly CheckBox spanCheck=new() { Text="Stretch the game over all my monitors", AutoSize=true };
     readonly CheckBox fovCheck=new() { Text="Wider view on wide screens (Hor+ field of view: the side screens show more, nothing is stretched)", AutoSize=true };
@@ -115,9 +117,10 @@ internal sealed class BridgeForm : Form
         tabs.TabPages.Add(ScreenTab());
         layout.Controls.Add(tabs,0,3);
         var bottom=new FlowLayoutPanel { AutoSize=true, Dock=DockStyle.Fill };
-        headCheck.Checked=settings.HeadEnabled;
+        headCheck.Checked=settings.HeadEnabled; hotasCheck.Checked=settings.UseHotas;
         turnRate.Value=(decimal)settings.TurnRate;
-        bottom.Controls.Add(flightCheck); bottom.Controls.Add(headCheck);
+        bottom.Controls.Add(hotasCheck); bottom.Controls.Add(headCheck);
+        hotasCheck.CheckedChanged+=(_,_)=>Safe(SetHotas);
         forwardOnly.Checked=settings.Axes["Throttle"].Unipolar;
         forwardOnly.CheckedChanged+=(_,_)=>Safe(()=>
         {
@@ -136,13 +139,10 @@ internal sealed class BridgeForm : Form
         bottom.Controls.Add(updateLink); layout.Controls.Add(bottom,0,4);
         _=CheckForUpdate();
         layout.Controls.Add(status,0,5); Controls.Add(layout);
-        // The hint must be set before SDL_Init: the bridge reads the controllers while the game has focus.
         try
         {
-            Sdl.SDL_SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS","1");
-            if(Sdl.SDL_Init(0x200 | 0x4000)!=0) throw new IOException("Could not start the controller reader (SDL2.dll).");
-            sdl=true;
-            RefreshDevices();
+            if(settings.UseHotas) { StartSdl(); RefreshDevices(); }
+            else { UpdateRows(); RefreshButtonRows(); status.Text=HotasOff; }
         }
         catch(DllNotFoundException)
         {
@@ -155,6 +155,32 @@ internal sealed class BridgeForm : Form
         UpdateScreens();
         timer.Tick+=(_,_)=>Safe(Poll); timer.Start();
         FormClosing+=(_,_)=>CloseBridge();
+    }
+    // The controller reader starts only while HOTAS / HOSAS is on. The hint must be set before SDL_Init: the bridge
+    // reads the controllers while the game has focus.
+    void StartSdl()
+    {
+        if(sdl) return;
+        Sdl.SDL_SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS","1");
+        if(Sdl.SDL_Init(0x200 | 0x4000)!=0) throw new IOException("Could not start the controller reader (SDL2.dll).");
+        sdl=true;
+    }
+    const string HotasOff="HOTAS / HOSAS is off: SpaceBourne 2 reads your controllers itself. Head tracking and triple screen still work.";
+    void SetHotas()
+    {
+        Save();
+        if(hotasCheck.Checked)
+        {
+            try { StartSdl(); } catch(DllNotFoundException) { throw new IOException(NoSdl); }
+            RefreshDevices();
+            return;
+        }
+        // Let go of every controller, and of anything half done with them.
+        Disarm(); calibration=false; learning=null; learningButton=null; calibrate.Text="Calibrate axes";
+        foreach(var d in devices) d.Dispose();
+        devices.Clear();
+        UpdateRows(); RefreshButtonRows();
+        status.Text=HotasOff+" Saved.";
     }
     void Safe(Action action)
     {
@@ -269,7 +295,7 @@ internal sealed class BridgeForm : Form
             b.Deadzone=Math.Clamp(row.Cells[4].Value is double dz ? dz : b.Deadzone,0,.4);
             b.Curve=Math.Clamp(row.Cells[5].Value is double cv ? cv : b.Curve,.5,3);
         }
-        settings.HeadEnabled=headCheck.Checked;
+        settings.HeadEnabled=headCheck.Checked; settings.UseHotas=hotasCheck.Checked;
         settings.TurnRate=(double)turnRate.Value;
         settings.SpanScreens=spanCheck.Checked; settings.WideFov=fovCheck.Checked; settings.CentreHud=hudCheck.Checked;
         settings.Save(profilePath);
@@ -342,6 +368,7 @@ internal sealed class BridgeForm : Form
     }
     void RefreshDevices()
     {
+        if(!hotasCheck.Checked) throw new IOException("HOTAS / HOSAS is off. Tick it to use your controllers through SB2 HOTAS.");
         if(!sdl) throw new IOException(NoSdl);
         Disarm(); calibration=false; learning=null; learningButton=null; calibrate.Text="Calibrate axes";
         foreach(var d in devices) d.Dispose(); devices.Clear();
@@ -456,7 +483,7 @@ internal sealed class BridgeForm : Form
             foreach(var b in settings.Buttons) buttonGrid.Rows.Add(b.Name,"","",b.Output,b.Mode);
             headCheck.Checked=settings.HeadEnabled; turnRate.Value=(decimal)settings.TurnRate;
             forwardOnly.Checked=settings.Axes["Throttle"].Unipolar;
-            Rescan(); settings.Save(profilePath);
+            Rescan(); hotasCheck.Checked=true; settings.Save(profilePath);   // a controller profile means HOTAS / HOSAS on
             status.Text=$"Imported profile \"{name}\".";
             return;
         }
@@ -464,10 +491,10 @@ internal sealed class BridgeForm : Form
         // imported one after another (later imports win, e.g. pedals take yaw from a stick's twist).
         var added=imported.Axes.Where(p=>p.Value.Device!="").Select(p=>p.Key).ToArray();
         foreach(var m in added) settings.Axes[m]=imported.Axes[m];
-        Rescan(); settings.Save(profilePath);
+        Rescan(); hotasCheck.Checked=true; settings.Save(profilePath);
         status.Text=$"Added \"{name}\" for {string.Join(", ",added)}. Import your other controllers the same way, then click Calibrate axes.";
     }
-    void Rescan() { if(sdl) RefreshDevices(); else { UpdateRows(); RefreshButtonRows(); } }
+    void Rescan() { if(sdl && hotasCheck.Checked) RefreshDevices(); else { UpdateRows(); RefreshButtonRows(); } }
     const string NoSdl="The controller library (SDL2.dll, which comes with the game) was not found. Click Install mod…, pick your SpaceBourne 2 folder, then restart the bridge.";
     string? PickGame(string action)
     {
@@ -530,6 +557,10 @@ internal sealed class BridgeForm : Form
     // One plain instruction at the top of the monitor, so nobody wonders why ARM does nothing.
     string NextStep()
     {
+        if(!hotasCheck.Checked)
+            return !headCheck.Checked ? "HOTAS / HOSAS is off: SpaceBourne 2 reads your controllers itself. Triple screen works without ARM."
+                : armed ? "Armed for head tracking. Ctrl+Alt+F12 disarms."
+                : "HOTAS / HOSAS is off: SpaceBourne 2 reads your controllers itself. Click ARM for head tracking.";
         if(!sdl) return "Click Install mod… and pick your SpaceBourne 2 folder, then restart the bridge.";
         if(devices.Count==0) return "Connect your controllers and click Scan devices.";
         if(calibration) return "Move every assigned axis end to end, centre sticks and pedals, then click Finish.";
@@ -546,11 +577,12 @@ internal sealed class BridgeForm : Form
         if(armed) {Disarm(); return;}
         Save();
         if(calibration || learning!=null || learningButton!=null) throw new IOException("Finish calibrating or detecting before arming.");
-        if(!flightCheck.Checked && !headCheck.Checked && !LookAssigned() && !settings.Buttons.Any(b=>b.Button>=0 && b.Output!="None"))
-            throw new IOException("Nothing to do: tick Flight axes or head tracking, or bind a button.");
+        if(!hotasCheck.Checked && !headCheck.Checked)
+            throw new IOException("Nothing to do: tick HOTAS / HOSAS or Head tracking.");
         // Arm whatever is ready: head tracking and buttons work even before the flight axes are calibrated.
         armed=true; armButton.Text="DISARM";
-        if(flightCheck.Checked && !AxesReady()) status.Text="Armed for head tracking and buttons only. Calibrate your axes to fly with them.";
+        if(!hotasCheck.Checked) status.Text="Armed for head tracking. Ctrl+Alt+F12 disarms.";
+        else if(!AxesReady()) status.Text="Armed for head tracking and buttons only. Calibrate your axes to fly with them.";
     }
     bool GameFocused()
     {
@@ -581,7 +613,8 @@ internal sealed class BridgeForm : Form
     {
         if(closing) return;
         if(ticks%60==0) UpdateScreens();   // about once a second
-        if(sdl) { Sdl.SDL_PumpEvents(); Sdl.SDL_JoystickUpdate(); }   // without SDL there are no devices, but head tracking still runs
+        bool hotas=hotasCheck.Checked;
+        if(sdl && hotas) { Sdl.SDL_PumpEvents(); Sdl.SDL_JoystickUpdate(); }   // without SDL there are no devices, but head tracking still runs
         var lines=new List<string>();
         foreach(var d in devices)
         {
@@ -601,7 +634,8 @@ internal sealed class BridgeForm : Form
                 }
             }
         }
-        if(lines.Count==0) lines.Add("No controllers connected. Plug them in and click Scan devices.");
+        if(lines.Count==0) lines.Add(hotas ? "No controllers connected. Plug them in and click Scan devices."
+            : "HOTAS / HOSAS is off, so the bridge doesn't read your controllers: SpaceBourne 2 does.");
         if(learning!=null && Environment.TickCount64>learnDeadline) {learning=null; status.Text="No movement detected. Try again.";}
         if(learningButton!=null)
         {
@@ -623,7 +657,7 @@ internal sealed class BridgeForm : Form
             }
         bool focus=GameFocused();
         // Flight needs every assigned axis calibrated and connected; if one drops out the mod hands control back.
-        bool flight=armed && flightCheck.Checked && AxesReady();
+        bool flight=armed && hotas && AxesReady();
         // Buttons. Hold keeps the key down; Tap / Tap on/off send a short press on each change, so rotary selectors
         // and latched switches never hold a key forever. Edges are tracked even while disarmed, so arming with a
         // switch already on doesn't fire it.
@@ -669,7 +703,7 @@ internal sealed class BridgeForm : Form
         axes[3]=Math.Clamp(axes[3],-1,1);
         double[] head; bool fresh;
         lock(poseLock) {head=pose.Zip(zero,(v,z)=>v-z).ToArray(); fresh=poseTime>0 && Environment.TickCount64-poseTime<250;}
-        bool tracking=headCheck.Checked && fresh, look=LookAssigned();
+        bool tracking=headCheck.Checked && fresh, look=hotas && LookAssigned();
         if(!tracking) head=new double[6];
         // Look axes turn the cockpit view like head tracking (full deflection = 90° yaw, 60° pitch), with or
         // without OpenTrack. Pushing up/forward reads negative, so it is flipped to look up.
@@ -689,8 +723,8 @@ internal sealed class BridgeForm : Form
             headLabel.Text=(fresh ? "OpenTrack OK" : "OpenTrack: no signal")+(tracking||look ? $" · view yaw {head[3]:0}° pitch {head[4]:0}°" : "");
             if(armed) status.Text=frameTrouble!=null ? "⚠ "+frameTrouble : (!focus ? "Armed; waiting for the SpaceBourne 2 window."
                 : flight ? "Armed — Ctrl+Alt+F12 disarms. Flight pauses by itself in menus, warp, landing and docking."
-                : "Armed for head tracking and buttons only.")
-                +(flightCheck.Checked && !flight ? " Flight is OFF until your axes are calibrated: DISARM, then Calibrate axes." : "");
+                : hotas ? "Armed for head tracking and buttons only." : "Armed for head tracking.")
+                +(hotas && !flight ? " Flight is OFF until your axes are calibrated: DISARM, then Calibrate axes." : "");
         }
     }
     void WriteFrame(bool flight,bool head,double[] axes,double[] pose,int mask)

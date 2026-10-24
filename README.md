@@ -10,6 +10,8 @@ Fly SpaceBourne 2 like a proper space sim. This mod supports:
 
 The game executable is never modified, and you can remove everything with one click.
 
+> **SpaceBourne 2 supports HOTAS natively since update 3.1.0 (October 2026):** joysticks, throttles, pedals, HOSAS and gamepads, with ready-made layouts. For flying, use the game's own support. SB2 HOTAS still adds **head tracking** and **triple screen / ultrawide**: untick **HOTAS / HOSAS** at the bottom of the bridge window to keep only those, so the game and the mod never both fly your ship. The HOTAS part stays available for setups the game doesn't handle well.
+
 **[Download the latest release](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest)** · [Discussion on Steam](https://steamcommunity.com/app/1646850/discussions/0/565923139446378768/) · [Report a bug or share a profile](https://github.com/hubertdungen/SpaceBourne2-HOTAS/issues)
 
 <p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/cockpit.png" alt="Cockpit view with head tracking" width="760"></p>
@@ -57,7 +59,7 @@ All of this happens in the bridge window. The **NEXT STEP** line at the top of t
 
 <p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/bridge.png" alt="The SB2 HOTAS bridge window" width="760"></p>
 
-1. **Scan devices.** Your controllers appear in the Axis monitor; move them and watch the numbers.
+1. **Tick HOTAS / HOSAS** at the bottom of the window (a new setup starts with it off, because the game now has its own HOTAS support), then click **Scan devices.** Your controllers appear in the Axis monitor; move them and watch the numbers.
 2. **Assign axes.** You have two ways:
    - **Import profile…** and pick a template from `bridge\templates`. Templates are per device and add up: import your stick, then your throttle, then your pedals.
    - Or do it by hand: select a movement (Pitch, Roll…), click **Detect axis**, and move only that control.
@@ -170,7 +172,7 @@ Some details:
 
 ## Head tracking with OpenTrack
 
-You don't need TrackIR: OpenTrack is free, and a normal webcam is enough.
+You don't need TrackIR: OpenTrack is free, and a normal webcam is enough. Head tracking works with **HOTAS / HOSAS** off too, while you fly with the game's own controller support: tick **Head tracking** and click **ARM**.
 
 1. Install **[OpenTrack](https://github.com/opentrack/opentrack/releases)**.
 2. Choose a **tracker** (the input):
@@ -299,6 +301,8 @@ This path hasn't been tested on real Linux hardware yet. If you try it, a quick 
    5. Unplug and replug the controllers.
 
    Games now see nothing, and SB2 HOTAS gets everything. For another game that should use the HOTAS directly, add it to HidHide's application list, or untick **Enable device hiding** while you play it.
+
+**You switched to the game's own HOTAS support (3.1.0+) and the game doesn't see your controllers.** HidHide is still hiding them: untick **Enable device hiding** in HidHide (or uninstall it), and untick **HOTAS / HOSAS** in the bridge.
 
 **Button bindings do nothing.** Run the game and the bridge with the same permissions: both normal, or both as administrator.
 

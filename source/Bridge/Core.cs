@@ -81,6 +81,9 @@ public sealed class Settings
     public int UdpPort { get; set; } = 4242;
     public Dictionary<string,AxisBinding> Axes { get; set; } = AllMovements.ToDictionary(m=>m,AxisBinding.For);
     public bool HeadEnabled { get; set; } = true;
+    // Off: the bridge leaves the controllers to the game (SpaceBourne 2 has its own HOTAS support since 3.1.0) and
+    // only does head tracking and triple screen. Profiles from before that keep it on; new ones start with it off.
+    public bool UseHotas { get; set; } = true;
     public List<ButtonBinding> Buttons { get; set; } = GameActions();
     public double TurnRate { get; set; } = 55;
     // Triple screen tab: Screens.cs stretches the game window; the mod's screen.lua does the FOV and the HUD.
@@ -110,7 +113,7 @@ public sealed class Settings
     static readonly JsonSerializerOptions ReadOptions = new() { ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
     public static Settings Load(string path)
     {
-        var s = File.Exists(path) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), ReadOptions) ?? new() : new();
+        var s = File.Exists(path) ? JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), ReadOptions) ?? new() : new() { UseHotas = false };
         foreach (var m in AllMovements) if (!s.Axes.ContainsKey(m)) s.Axes[m] = AxisBinding.For(m);
         // Unknown names (typos in a template) would be invisible in the grid yet still block flight.
         foreach (var k in s.Axes.Keys.Except(AllMovements).ToList()) s.Axes.Remove(k);
