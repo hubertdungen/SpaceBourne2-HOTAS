@@ -21,8 +21,8 @@ local SIZED = {W_Main_Menu_C = true, Pause_Menu_C = true, Ship_MainWidget_C = tr
 local KEEP = {MainIndicatorHUD_C = true, Test_Crosshair_C = true, SMW_ToolTipHolder_C = true}
 local opts = {fov = false, hud = false, left = 0, width = 0}   -- all off until the bridge's tab turns them on
 local off = {}          -- fixes that hit an error: name -> true
-local moved = {}        -- addresses of widgets we put on the centre monitor -> true
-local wholeWindow = {}  -- addresses of other widgets the game sized to the whole window: handled like SIZED
+local moved = {}        -- addresses of widgets we put on the centre monitor -> their class
+local wholeWindow = {}  -- addresses of other full-screen widgets -> their class: handled like SIZED
 local gameInstance, statics, layout, pcKey, locked, lastNote
 local smooth, smoothAt = nil, 0   -- the game's own FOV, smoothed (see fov())
 
@@ -146,9 +146,12 @@ end
 -- Widgets the game places itself (markers, tooltips, anything at a spot of its own) keep it.
 local function place(widget, c, left, width)
     local key = widget:GetAddress()
-    local mine = moved[key]
     local want = opts.hud and width < .999
     local class = widget:GetClass():GetFName():ToString()
+    -- Once a widget is gone, a new one can get its address: remembered addresses only count for the same class.
+    if moved[key] and moved[key] ~= class then moved[key] = nil end
+    if wholeWindow[key] and wholeWindow[key] ~= class then wholeWindow[key] = nil end
+    local mine = moved[key]
     if KEEP[class] then
         if mine then restore(widget, c); moved[key] = nil end
         return
@@ -169,7 +172,7 @@ local function place(widget, c, left, width)
                 a.Minimum.X, a.Minimum.Y, a.Maximum.X, a.Maximum.Y, ok and d and string.format("%.0fx%.0f", d.X, d.Y) or "?")) end
             return
         end
-        wholeWindow[key] = true      -- once sized, it is pinned to a corner: remember it was full-screen
+        wholeWindow[key] = class     -- once sized, it is pinned to a corner: remember it was full-screen
     end
     if want then
         local w, h = viewport(c)
@@ -178,7 +181,7 @@ local function place(widget, c, left, width)
         report(class, "put on the centre monitor")
         widget:SetDesiredSizeInViewport({X = width * w / scale, Y = h / scale})
         widget:SetPositionInViewport({X = left * w, Y = 0}, true)
-        moved[key] = true
+        moved[key] = class
     elseif mine then
         restore(widget, c)
         moved[key] = nil
@@ -211,7 +214,7 @@ local function learn(widget, c, size)
     if scale <= 0 then return end
     local class = widget:GetClass():GetFName():ToString()
     if math.abs(s.X - w / scale) < 2 and math.abs(s.Y - h / scale) < 2 then
-        wholeWindow[widget:GetAddress()] = true
+        wholeWindow[widget:GetAddress()] = class
         report(class .. "+", "is sized to the whole window by the game")
     elseif not SIZED[class] then
         report(class .. "~", string.format("is sized %.0fx%.0f by the game (window %.0fx%.0f)", s.X, s.Y, w / scale, h / scale))
@@ -230,6 +233,21 @@ local busy = false
 
 -- Called by every ship and cockpit tick, the player's or not, and by the widget hooks: once a second, re-read the
 -- bridge's choices, place the HUD and menus, and keep the FOV right outside the cockpit too.
+-- Looking through every widget (FindAllOf) costs this game 50-90 ms, a hitch you can see, so it only happens when
+-- something changed: the bridge's choices, the window's size, or a new map (main.lua calls M.rescan). Widgets that
+-- appear or move in between reach M.widget through main.lua's hooks.
+local scanned, rescan = nil, true
+function M.rescan() rescan = true end
+local function hudWhenChanged()
+    local c = controller()
+    if not c then return end
+    local w, h = viewport(c)
+    local now = string.format("%s %s %s %s %d %d", tostring(opts.fov), tostring(opts.hud), opts.left, opts.width, w, h)
+    if not rescan and now == scanned then return end
+    rescan, scanned = false, now
+    hud()
+end
+
 local nextTick = 0
 function M.tick()
     if busy then return end
@@ -238,7 +256,7 @@ function M.tick()
     nextTick = now + 1
     busy = true
     pcall(readOptions)
-    guard("HUD", hud)
+    guard("HUD", hudWhenChanged)
     guard("FOV", fov)
     busy = false
 end

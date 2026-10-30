@@ -222,7 +222,7 @@ if type(RegisterBeginPlayPostHook)=="function" and pcall(RegisterBeginPlayPostHo
     tryHooks(); hookWidgets(); pcall(hookLevelTick,context:get()); pcall(Screen.tick)
 end) then onGameThread=true end
 if type(RegisterInitGameStatePostHook)=="function" and pcall(RegisterInitGameStatePostHook,function()
-    tryHooks(); hookWidgets(); pcall(Screen.tick)
+    tryHooks(); hookWidgets(); pcall(Screen.rescan); pcall(Screen.tick)   -- a new map: look through its widgets once
 end) then onGameThread=true end
 if not onGameThread then
     local queued=false
