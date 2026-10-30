@@ -12,7 +12,6 @@
 local Config = require("config")
 local M = {}
 local WIDE = 16 / 9
-local FULL = {Minimum = {X = 0, Y = 0}, Maximum = {X = 1, Y = 1}}
 -- SpaceBourne 2 sizes most of its widgets to the whole window itself (SetDesiredSizeInViewport, anchored at the
 -- top-left corner) instead of stretching them. These are resized to the centre monitor.
 local SIZED = {W_Main_Menu_C = true, Pause_Menu_C = true, Ship_MainWidget_C = true, WBP_LogHUD_C = true,
@@ -22,7 +21,7 @@ local SIZED = {W_Main_Menu_C = true, Pause_Menu_C = true, Ship_MainWidget_C = tr
 local KEEP = {MainIndicatorHUD_C = true, Test_Crosshair_C = true, SMW_ToolTipHolder_C = true}
 local opts = {fov = false, hud = false, left = 0, width = 0}   -- all off until the bridge's tab turns them on
 local off = {}          -- fixes that hit an error: name -> true
-local moved = {}        -- addresses of widgets we put on the centre monitor -> {left, width, sized}
+local moved = {}        -- addresses of widgets we put on the centre monitor -> true
 local wholeWindow = {}  -- addresses of other widgets the game sized to the whole window: handled like SIZED
 local gameInstance, statics, layout, pcKey, locked, lastNote
 local smooth, smoothAt = nil, 0   -- the game's own FOV, smoothed (see fov())
@@ -126,17 +125,15 @@ local function slice(c)
     return (1 - width) / 2, width
 end
 
--- Puts a widget back the way the game had it. `widget` is always a fresh object, never one we kept.
-local function restore(widget, m, c)
-    if m.sized then
-        local w, h = viewport(c)
-        local scale = layout:GetViewportScale(c)
-        if scale > 0 then
-            widget:SetDesiredSizeInViewport({X = w / scale, Y = h / scale})
-            widget:SetPositionInViewport({X = 0, Y = 0}, true)
-        end
-    else
-        widget:SetAnchorsInViewport(FULL)
+-- Puts a widget back over the whole window. `widget` is always a fresh object, never one we kept.
+-- Widgets are only ever moved by size and position, never by anchors: SetAnchorsInViewport called from Lua leaves
+-- the anchors at 0,0-0,0 (UE4SS 3.0 doesn't pass the struct), which pinned menus to the window's top-left corner.
+local function restore(widget, c)
+    local w, h = viewport(c)
+    local scale = layout:GetViewportScale(c)
+    if scale > 0 then
+        widget:SetDesiredSizeInViewport({X = w / scale, Y = h / scale})
+        widget:SetPositionInViewport({X = 0, Y = 0}, true)
     end
 end
 
@@ -145,49 +142,45 @@ local function report(class, text)
     if not logged[class] then logged[class] = true; print("[SB2HOTAS] Screen: " .. class .. " " .. text .. "\n") end
 end
 
--- Full-screen widgets (HUD, menus) get anchored to the centre monitor's slice. Widgets the game places itself
--- (markers, tooltips, anything moved with SetPositionInViewport) keep their spot, except the SIZED menus.
+-- Full-screen widgets (HUD, menus, loot and elevator screens...) get the centre monitor's size and position.
+-- Widgets the game places itself (markers, tooltips, anything at a spot of its own) keep it.
 local function place(widget, c, left, width)
     local key = widget:GetAddress()
     local mine = moved[key]
     local want = opts.hud and width < .999
     local class = widget:GetClass():GetFName():ToString()
     if KEEP[class] then
-        if mine then restore(widget, mine, c); moved[key] = nil end
+        if mine then restore(widget, c); moved[key] = nil end
         return
     end
-    if SIZED[class] or wholeWindow[key] then
-        if want then
-            report(class, "resized to the centre monitor")
-            local w, h = viewport(c)
-            local scale = layout:GetViewportScale(c)
-            if scale <= 0 then return end
-            widget:SetDesiredSizeInViewport({X = width * w / scale, Y = h / scale})
-            widget:SetPositionInViewport({X = left * w, Y = 0}, true)
-            moved[key] = {left = left, width = width, sized = true}
-        elseif mine then
-            restore(widget, mine, c)
-            moved[key] = nil
+    if not (SIZED[class] or wholeWindow[key] or mine) then
+        -- Not one of ours yet. Full-screen means anchored over the whole window, or pinned to its top-left corner at
+        -- the window's height (how the game lays out some menus for one screen).
+        local a = widget:GetAnchorsInViewport()
+        local full = a.Minimum.X == 0 and a.Minimum.Y == 0 and a.Maximum.X == 1 and a.Maximum.Y == 1
+        local corner = a.Minimum.X == 0 and a.Minimum.Y == 0 and a.Maximum.X == 0 and a.Maximum.Y == 0
+        local ok, d = false, nil
+        if corner then ok, d = pcall(function() return widget:GetDesiredSize() end) end
+        local _, h = viewport(c)
+        local scale = layout:GetViewportScale(c)
+        local tall = ok and d ~= nil and scale > 0 and d.Y >= .9 * h / scale
+        if not (full or tall) then
+            if want then report(class .. "#", string.format("left in place (anchors %.2f,%.2f-%.2f,%.2f, its own size %s)",
+                a.Minimum.X, a.Minimum.Y, a.Maximum.X, a.Maximum.Y, ok and d and string.format("%.0fx%.0f", d.X, d.Y) or "?")) end
+            return
         end
-        return
-    end
-    local a = widget:GetAnchorsInViewport()
-    if mine and (mine.sized or not (near(a.Minimum.X, mine.left) and near(a.Maximum.X, mine.left + mine.width))) then
-        moved[key], mine = nil, nil                  -- the game has placed it itself since (or it's another widget)
-    end
-    local full = a.Minimum.X == 0 and a.Minimum.Y == 0 and a.Maximum.X == 1 and a.Maximum.Y == 1
-    if not mine and not full then
-        if want then report(class .. "#", string.format("left in place (the game anchors it at %.2f,%.2f-%.2f,%.2f)", a.Minimum.X, a.Minimum.Y, a.Maximum.X, a.Maximum.Y)) end
-        return
+        wholeWindow[key] = true      -- once sized, it is pinned to a corner: remember it was full-screen
     end
     if want then
-        report(class, "moved to the centre monitor")
-        if not mine or not near(mine.left, left) or not near(mine.width, width) then
-            widget:SetAnchorsInViewport({Minimum = {X = left, Y = 0}, Maximum = {X = left + width, Y = 1}})
-            moved[key] = {left = left, width = width}
-        end
+        local w, h = viewport(c)
+        local scale = layout:GetViewportScale(c)
+        if scale <= 0 then return end
+        report(class, "put on the centre monitor")
+        widget:SetDesiredSizeInViewport({X = width * w / scale, Y = h / scale})
+        widget:SetPositionInViewport({X = left * w, Y = 0}, true)
+        moved[key] = true
     elseif mine then
-        restore(widget, mine, c)
+        restore(widget, c)
         moved[key] = nil
     end
 end
@@ -210,14 +203,18 @@ local function hud()
     for key in pairs(wholeWindow) do if not seen[key] then wholeWindow[key] = nil end end
 end
 
--- The game just gave `widget` this size: if that is the whole window, it is one of its menus, even if not in SIZED.
+-- The game is giving `widget` this size: if that is the whole window, it is one of its menus, even if not in SIZED.
 local function learn(widget, c, size)
     local s = size:get()
     local w, h = viewport(c)
     local scale = layout:GetViewportScale(c)
-    if scale > 0 and math.abs(s.X - w / scale) < 2 and math.abs(s.Y - h / scale) < 2 then
+    if scale <= 0 then return end
+    local class = widget:GetClass():GetFName():ToString()
+    if math.abs(s.X - w / scale) < 2 and math.abs(s.Y - h / scale) < 2 then
         wholeWindow[widget:GetAddress()] = true
-        report(widget:GetClass():GetFName():ToString() .. "+", "is sized to the whole window by the game")
+        report(class .. "+", "is sized to the whole window by the game")
+    elseif not SIZED[class] then
+        report(class .. "~", string.format("is sized %.0fx%.0f by the game (window %.0fx%.0f)", s.X, s.Y, w / scale, h / scale))
     end
 end
 
@@ -244,6 +241,16 @@ function M.tick()
     guard("HUD", hud)
     guard("FOV", fov)
     busy = false
+end
+
+-- Called just before the game sizes `widget` (main.lua hooks SetDesiredSizeInViewport; the size is only readable
+-- before the call): a menu about to fill the whole window is remembered, and placed right after the call.
+function M.sizing(widget, size)
+    if busy or off.HUD or not opts.hud then return end
+    local c = controller()
+    if not c then return end
+    local ok, err = pcall(learn, widget, c, size)
+    if not ok then report("size", "of a widget unreadable: " .. tostring(err)) end
 end
 
 -- Called right after the game puts a widget on screen, sizes, moves or anchors it (main.lua hooks those calls), so

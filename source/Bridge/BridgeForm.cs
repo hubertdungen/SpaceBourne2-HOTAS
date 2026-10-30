@@ -48,6 +48,10 @@ internal sealed class BridgeForm : Form
     double[] pose=new double[6], zero=new double[6];
     long poseTime, sequence;
     string? frameTrouble;   // why frames don't reach the mod (Data.Replace), shown at the top of the window
+    // Frames go to state.txt, or to state2.txt once Windows wouldn't let them land in state.txt; the mod reads both.
+    string frameFile="state.txt";
+    long starvedSince, switchedAt=-60000;
+    int recentSwitches;
     bool armed, calibration, closing, sdl;
     string? learning;
     long learnDeadline;
@@ -716,7 +720,9 @@ internal sealed class BridgeForm : Form
             lines.Add("\r\nNormalized:  "+string.Join("   ",Settings.Movements.Select((m,i)=>(mask&(1<<i))==0 ? $"{m} —"
                 : $"{m} {axes[i]:0.00}{((kbMask&(1<<i))!=0 ? " (keys)" : "")}"))+(reverse ? "   [REVERSE]" : ""));
             if(look) lines.Add($"Look:  yaw {lookYaw:0.00}   pitch {lookPitch:0.00}");
-            lines.Add("\r\nIn-game mod: "+ReadModStatus());
+            var mod=ReadModStatus();
+            lines.Add("\r\nIn-game mod: "+mod);
+            WatchLanding(mod);
             lines.Insert(0,"NEXT STEP: "+NextStep()+"\r\n");
             if(frameTrouble!=null) lines.Insert(0,"⚠ The game gets no controls: "+frameTrouble+"\r\n");
             monitor.Text=string.Join("\r\n",lines);
@@ -729,7 +735,7 @@ internal sealed class BridgeForm : Form
     }
     void WriteFrame(bool flight,bool head,double[] axes,double[] pose,int mask)
     {
-        var path=Data.PathOf("state.txt");
+        var path=Data.PathOf(frameFile);
         var frame=new FlightFrame(++sequence,flight,head,axes,pose,(double)turnRate.Value,mask);
         // A failed write skips this frame instead of disarming; the mod's watchdog allows 250 ms. The usual cause is
         // the mod reading state.txt right now, which Windows reports as "access denied" (not a sharing error).
@@ -737,11 +743,35 @@ internal sealed class BridgeForm : Form
         {
             bool check=sequence%30==0;   // about twice a second, make sure the frame really landed
             Data.Replace(path,frame.Serialize(),check);
-            if(check) frameTrouble=null;
         }
         catch(DirectoryNotFoundException) { Directory.CreateDirectory(Data.Dir); }
-        catch(StuckFileException e) { frameTrouble=e.Message; }
+        catch(StuckFileException) { SwitchFrameFile(); }
         catch(Exception e) when (e is IOException or UnauthorizedAccessException) {}
+    }
+    // The bridge can't always tell from its own side that a frame didn't land (on one PC it even read its own write
+    // back), but the mod can: it reports "Waiting for the bridge" when no new frame arrives. If that lasts while the
+    // bridge is writing, frames go to the other file. Only a current status counts: the mod rewrites it every 2 s
+    // while you're in a ship, and an old one (left from a menu or a closed game) says nothing about now.
+    void WatchLanding(string mod)
+    {
+        long now=Environment.TickCount64;
+        bool current;
+        try { current=File.GetLastWriteTimeUtc(Data.PathOf("status.txt"))>DateTime.UtcNow.AddSeconds(-4); } catch { current=false; }
+        if(!current || !mod.StartsWith("Waiting for the bridge")) { starvedSince=0; if(now-switchedAt>10000) { recentSwitches=0; frameTrouble=null; } return; }
+        if(starvedSince==0) { starvedSince=now; return; }
+        if(now-starvedSince>2000 && now-switchedAt>5000) { SwitchFrameFile(); starvedSince=0; }
+    }
+    // A file the bridge makes itself, it can always replace. So when frames stop landing in one file, it writes the
+    // other, made fresh. If neither works, it says how to clear them by hand (which cured it on that PC).
+    void SwitchFrameFile()
+    {
+        long now=Environment.TickCount64;
+        recentSwitches=now-switchedAt<60000 ? recentSwitches+1 : 1;
+        switchedAt=now;
+        frameFile=frameFile=="state.txt" ? "state2.txt" : "state.txt";
+        try { File.Delete(Data.PathOf(frameFile)); } catch(Exception e) when (e is IOException or UnauthorizedAccessException) {}
+        frameTrouble=recentSwitches<3 ? null
+            : $"Windows won't let the bridge update its files. Close the bridge, delete state.txt and state2.txt in {Data.Dir}, then open it again. An antivirus may be blocking SB2-HOTAS.exe.";
     }
     string ReadModStatus()
     {

@@ -20,23 +20,32 @@ local BLOCKERS = {"DisableALL","DisableMovement?","DisableAxisMovement","CursorO
 local flying, cameraState, failed = nil, nil, false   -- flying: address of the ship we steer
 local shipWatch, headWatch = P.watchdog(), P.watchdog()
 local hookedShip, hookedCamera = false, false
-local lastStatus = ""
+local lastStatus, statusAgain = "", 0
 local function valid(o) return o ~= nil and o:IsValid() end
+-- Logged when it changes; rewritten every 2 s while it holds, so the bridge can tell a current status from an old one.
 local function status(message)
-    if message == lastStatus then return end
-    lastStatus=message
-    print("[SB2HOTAS] " .. message .. "\n")
+    local now=os.clock()
+    if message == lastStatus and now < statusAgain then return end
+    statusAgain=now+2
+    if message ~= lastStatus then lastStatus=message; print("[SB2HOTAS] " .. message .. "\n") end
     local f=io.open(Config.status,"w")
     if f then f:write(message); f:close() end
 end
 local lastFrame
+local function readFile(path,now)
+    local f=io.open(path,"r")
+    if not f then return nil end
+    local s=f:read(1025); f:close()
+    return P.parse(s,now)
+end
+-- The bridge writes state.txt, or state2.txt when Windows won't let it replace state.txt. A frame more than two
+-- seconds old doesn't parse, so the one the bridge has given up on drops out by itself; if both are fresh, the newer wins.
 local function read()
-    local f=io.open(Config.state,"r")
-    if f then
-        local s=f:read(1025); f:close()
-        lastFrame=P.parse(s,os.time()) or lastFrame
-    end
+    local now=os.time()
+    local a,b=readFile(Config.state,now),readFile(Config.state2,now)
+    local f=(a and b) and (b.time>a.time and b or a) or a or b
     -- A failed read (bridge replacing the file) reuses the last frame; its unchanged seq still trips the watchdog.
+    lastFrame=f or lastFrame
     return lastFrame
 end
 -- Hands the ship back to the game, if it's the one we steer. `ship` comes from the current hook.
@@ -181,11 +190,14 @@ local function hookWidgets()
     widgetsHooked=true
     for name,onlyMoved in pairs(WIDGET_CALLS) do
         local fn="/Script/UMG.UserWidget:"..name
-        local sizing=name=="SetDesiredSizeInViewport"   -- its size tells Screen which menus fill the whole window
+        -- Its size (readable only before the call) tells Screen which menus fill the whole window.
+        local sizing=name=="SetDesiredSizeInViewport"
         local ok,err=pcall(function()
             if not valid(StaticFindObject(fn)) then error("not found") end
-            RegisterHook(fn,function() end,function(context,size)
-                pcall(Screen.widget,context:get(),onlyMoved,sizing and size or nil)
+            RegisterHook(fn,function(context,size)
+                if sizing then pcall(Screen.sizing,context:get(),size) end
+            end,function(context)
+                pcall(Screen.widget,context:get(),onlyMoved)
             end)
         end)
         print("[SB2HOTAS] Screen "..(ok and "follows " or "can't follow ")..fn..(ok and "" or ": "..tostring(err)).."\n")

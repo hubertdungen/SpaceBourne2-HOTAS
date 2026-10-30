@@ -20,14 +20,14 @@ public static class Data
         File.WriteAllText(path+".tmp",text);
         File.Move(path+".tmp",path,true);
         if(!check || Holds(path,text)) return;
-        File.Delete(path);
-        File.WriteAllText(path+".tmp",text);
-        File.Move(path+".tmp",path,true);
+        // Each way of putting it right may itself be refused, so all are tried before giving up.
+        Try(()=>File.Delete(path));
+        Try(()=>{ File.WriteAllText(path+".tmp",text); File.Move(path+".tmp",path,true); });
         if(Holds(path,text)) return;
-        using(var f=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete))
-            f.Write(System.Text.Encoding.UTF8.GetBytes(text));
+        Try(()=>{ using var f=new FileStream(path,FileMode.Create,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete); f.Write(System.Text.Encoding.UTF8.GetBytes(text)); });
         if(!Holds(path,text)) throw new StuckFileException(path);
     }
+    static void Try(Action action) { try { action(); } catch(Exception e) when (e is IOException or UnauthorizedAccessException) {} }
     // True when the file holds `text`, or can't be read right now (the mod reading it); checked again next time.
     static bool Holds(string path,string text)
     {

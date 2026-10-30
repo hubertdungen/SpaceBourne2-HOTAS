@@ -23,7 +23,7 @@ function M.parse(text, now)
     if not mask or mask < 0 or mask > 127 then return nil end
     local has = {keyboardThrottle = mask & 64 ~= 0}
     for i,name in ipairs(AXES) do has[name] = mask & (1 << (i-1)) ~= 0 end
-    return {seq=v[2], flight=v[4]==1, head=v[5]==1, has=has,
+    return {seq=v[2], time=v[3], flight=v[4]==1, head=v[5]==1, has=has,
         pitch=v[6], roll=v[7], yaw=v[8], throttle=v[9], strafe=v[10], lift=v[11],
         x=v[12], y=v[13], z=v[14], headYaw=v[15], headPitch=v[16], headRoll=v[17], rate=v[18]}
 end

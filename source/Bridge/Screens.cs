@@ -24,34 +24,38 @@ internal sealed class Screens
     public string Tick(bool span, bool fov, bool hud, string process)
     {
         var displays = Displays();
-        var area = displays.Count == 0 ? Rectangle.Empty : displays.Select(d => d.Bounds).Aggregate(Rectangle.Union);
+        var centre = Centre(displays);
+        var area = Around(displays, centre);
+        var used = displays.Where(d => d.Bounds.Right > area.Left && d.Bounds.Left < area.Right).ToList();
         var game = FindGameWindow(process);
         if (game != window) { window = game; stretched = gaveUp = false; retries.Clear(); }
-        bool multi = displays.Count > 1;
+        bool multi = used.Count > 1;
         if (!span || !multi) PutBack();
         bool spread = span && multi && game != IntPtr.Zero && !gaveUp && Stretch(game, area);
 
         // The centre monitor's slice of the window. Width 0 lets the mod use a centred 16:9 slice instead,
         // which suits a single ultrawide or an NVIDIA Surround / AMD Eyefinity screen.
-        var centre = Centre(displays);
         double left = 0, width = 0;
         if (spread) { left = (double)(centre.X - area.X) / area.Width; width = (double)centre.Width / area.Width; }
         WriteOptions(fov, hud, left, width);
 
         var text = new StringBuilder("Monitors, left to right: ");
         text.Append(string.Join("  ·  ", displays.Select(d => $"{d.Bounds.Width}×{d.Bounds.Height}" + (d.Primary ? " (main)" : ""))));
-        if (multi) text.Append($"  →  together {area.Width}×{area.Height}.");
+        if (multi) text.Append($"  →  the game uses {used.Count} of them, {area.Width}×{area.Height}.");
         text.Append("\r\n");
-        if (multi && displays.Any(d => d.Bounds.Top != area.Top || d.Bounds.Height != area.Height))
+        if (used.Count < displays.Count && displays.Count > 1)
+            text.Append(multi ? $"{displays.Count - used.Count} monitor(s) on one side only (a TV or a tablet, say) stay out, so your centre monitor stays in the middle of the picture, where the game looks.\r\n"
+                : "Your centre monitor has no monitor on one side, so stretching would put the middle of the picture off it. In Windows display settings, put the main monitor between the others.\r\n");
+        if (multi && used.Any(d => d.Bounds.Top != area.Top || d.Bounds.Height != area.Height))
             text.Append("Your monitors don't all have the same height (or aren't lined up by their top edge), so part of the picture "
                 + "falls outside the smaller ones. Give them the same height first: see \"Triple screen\" in the README "
                 + "(NVIDIA DSR/DLDSR or a custom resolution), then line them up at the top in Windows display settings.\r\n");
-        text.Append(!multi ? "Only one monitor found, so there is nothing to stretch. The FOV and HUD options still help an ultrawide or Surround screen."
+        text.Append(!multi ? (displays.Count > 1 ? "Nothing to stretch." : "Only one monitor found, so there is nothing to stretch.") + " The FOV and HUD options still help an ultrawide or Surround screen."
             : !span ? "Stretching is off."
             : game == IntPtr.Zero ? "Waiting for SpaceBourne 2…"
             : gaveUp ? "SpaceBourne 2 keeps putting its window back. In the game, set Display Mode to Windowed Fullscreen (or Windowed), "
                 + "then untick and tick the first box again."
-            : spread ? $"SpaceBourne 2 is stretched over all {displays.Count} monitors ({area.Width}×{area.Height})."
+            : spread ? $"SpaceBourne 2 is stretched over {used.Count} monitors ({area.Width}×{area.Height})."
             : "SpaceBourne 2 is minimised.");
         return text.ToString();
     }
@@ -116,11 +120,26 @@ internal sealed class Screens
         return list;
     });
 
-    // With an odd number of monitors in a row, the middle one; otherwise the main one.
-    static Rectangle Centre(List<Display> displays) =>
-        displays.Count == 0 ? Rectangle.Empty
-        : displays.Count % 2 == 1 ? displays[displays.Count / 2].Bounds
-        : displays.FirstOrDefault(d => d.Primary, displays[0]).Bounds;
+    // The game always looks at the middle of its window, so the window reaches equally far on both sides of the
+    // centre monitor: a monitor further out on one side only (a TV, a tablet) is left out, or the view would sit
+    // off-centre on the main monitor.
+    static Rectangle Around(List<Display> displays, Rectangle centre)
+    {
+        if (displays.Count == 0) return Rectangle.Empty;
+        int side = Math.Max(0, Math.Min(centre.Left - displays.Min(d => d.Bounds.Left), displays.Max(d => d.Bounds.Right) - centre.Right));
+        int left = centre.Left - side, right = centre.Right + side;
+        var used = displays.Where(d => d.Bounds.Right > left && d.Bounds.Left < right).Select(d => d.Bounds).ToList();
+        return Rectangle.FromLTRB(left, used.Min(b => b.Top), right, used.Max(b => b.Bottom));
+    }
+
+    // The main monitor when it has monitors on both sides; otherwise the middle one of an odd number in a row.
+    static Rectangle Centre(List<Display> displays)
+    {
+        if (displays.Count == 0) return Rectangle.Empty;
+        var main = displays.FirstOrDefault(d => d.Primary, displays[0]).Bounds;
+        bool flanked = displays.Any(d => d.Bounds.Right <= main.Left) && displays.Any(d => d.Bounds.Left >= main.Right);
+        return flanked || displays.Count % 2 == 0 ? main : displays[displays.Count / 2].Bounds;
+    }
 
     static IntPtr FindGameWindow(string process)
     {

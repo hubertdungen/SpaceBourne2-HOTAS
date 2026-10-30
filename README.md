@@ -310,7 +310,9 @@ This path hasn't been tested on real Linux hardware yet. If you try it, a quick 
 
 **The bridge window takes up to a minute to appear.** That happens the first time a new version runs: your antivirus checks the new `SB2-HOTAS.exe` before letting it start. Later starts are quick.
 
-**The bridge shows your sticks moving, but the ship ignores them.** Look at the top of the bridge window: if it says *"The game gets no controls"*, Windows isn't letting the bridge update its files, usually because an antivirus is watching `SB2-HOTAS.exe`. Allow it in your antivirus and restart the bridge. If "In-game mod" says *"Waiting for the bridge: no new frames"*, the game isn't getting the bridge's updates: restart the bridge.
+**The bridge shows your sticks moving, but the ship ignores them (or head tracking does nothing).** On some PCs Windows quietly refuses the bridge's updates to the file the game reads, usually after an update of the bridge. The bridge notices (the game reports *"Waiting for the bridge: no new frames"*) and switches to a second file by itself within a few seconds. If the top of the bridge window still says *"The game gets no controls"*: close the bridge, delete `state.txt` and `state2.txt` in `%LOCALAPPDATA%\SB2HOTAS`, and open it again. Allowing `SB2-HOTAS.exe` in your antivirus can help too.
+
+**The view is off-centre on your main monitor (on foot, the character sits far to one side).** The game looks at the middle of its window, so the bridge stretches it only as far as it can go equally on both sides of your main monitor. A TV or tablet connected as an extra screen on one side is left out. If your main monitor is at one end of the row, make it the middle one in Windows display settings.
 
 **Two identical controllers.** They show up as `Name` and `Name #2`. Your settings live in `%LOCALAPPDATA%\SB2HOTAS\profile.json`.
 
@@ -336,7 +338,7 @@ The mod has two parts:
 
 - **Bridge** (`bridge\SB2-HOTAS.exe`). A small Windows app that reads your controllers (through the SDL2 library that ships with the game) and OpenTrack (over UDP). It writes what it reads to `%LOCALAPPDATA%\SB2HOTAS\state.txt` 60 times a second.
 - **Mod** (a [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) Lua mod). Inside the game, it reads that file and steers the ship through the game's own flight code, and moves the cockpit camera with your head. It uses no memory offsets and no executable patches, and it never touches your saves.
-- **Triple screen.** The bridge moves and resizes the game's borderless window over your monitors, the way dragging it would, and writes your choices to `screen.txt`. The mod's `screen.lua` then widens the camera's field of view to match the window (Hor+, smoothed so the game's tiny FOV wobble doesn't shimmer), and anchors the HUD widgets to the centre monitor.
+- **Triple screen.** The bridge moves and resizes the game's borderless window over your monitors, the way dragging it would, and writes your choices to `screen.txt`. The mod's `screen.lua` then widens the camera's field of view to match the window (Hor+, smoothed so the game's tiny FOV wobble doesn't shimmer), and gives the HUD and full-screen menus the centre monitor's size and place.
 
 ## Credits and license
 
