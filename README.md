@@ -12,7 +12,7 @@ The game executable is never modified, and you can remove everything with one cl
 
 > **SpaceBourne 2 supports HOTAS natively since update 3.1.0 (October 2026):** joysticks, throttles, pedals, HOSAS and gamepads, with ready-made layouts. For flying, use the game's own support. SB2 HOTAS still adds **head tracking** and **triple screen / ultrawide**: untick **HOTAS / HOSAS** at the bottom of the bridge window to keep only those, so the game and the mod never both fly your ship. The HOTAS part stays available for setups the game doesn't handle well.
 
-**[Download the latest release](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest)** · [Discussion on Steam](https://steamcommunity.com/app/1646850/discussions/0/565923139446378768/) · [Report a bug or share a profile](https://github.com/hubertdungen/SpaceBourne2-HOTAS/issues)
+**[Download the latest release](https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest)** · [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/8) · [Discussion on Steam](https://steamcommunity.com/app/1646850/discussions/0/565923139446378768/) · [Report a bug or share a profile](https://github.com/hubertdungen/SpaceBourne2-HOTAS/issues)
 
 <p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/cockpit.png" alt="Cockpit view with head tracking" width="760"></p>
 
@@ -342,7 +342,8 @@ The mod has two parts:
 
 ## Part of the SpaceBourne 2 realism set
 
-- **SB2 HOTAS**: this mod (flight controls, head tracking, triple screen)
+- **SB2 HOTAS**: this mod (flight controls, head tracking, triple screen):
+  [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/8)
 - **Hardcore Tactical Realism (HTR)**, the on-foot combat overhaul:
   [GitHub](https://github.com/hubertdungen/SpaceBourne2-HardcoreTacticalRealism) ·
   [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/4) ·
