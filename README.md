@@ -340,6 +340,26 @@ The mod has two parts:
 - **Mod** (a [UE4SS](https://github.com/UE4SS-RE/RE-UE4SS) Lua mod). Inside the game, it reads that file and steers the ship through the game's own flight code, and moves the cockpit camera with your head. It uses no memory offsets and no executable patches, and it never touches your saves.
 - **Triple screen.** The bridge moves and resizes the game's borderless window over your monitors, the way dragging it would, and writes your choices to `screen.txt`. The mod's `screen.lua` then widens the camera's field of view to match the window (Hor+, smoothed so the game's tiny FOV wobble doesn't shimmer), and gives the HUD and full-screen menus the centre monitor's size and place.
 
+## Part of the SpaceBourne 2 realism set
+
+- **SB2 HOTAS**: this mod (flight controls, head tracking, triple screen)
+- **Hardcore Tactical Realism (HTR)**, the on-foot combat overhaul:
+  [GitHub](https://github.com/hubertdungen/SpaceBourne2-HardcoreTacticalRealism) ·
+  [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/4) ·
+  [Steam discussion](https://steamcommunity.com/app/1646850/discussions/0/573805072991123580)
+- **Split Controls**, separate invert for ship and on foot:
+  [GitHub](https://github.com/hubertdungen/SpaceBourne2-SplitControls) ·
+  [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/5)
+- **Silent Ops**, stealth and takedowns:
+  [GitHub](https://github.com/hubertdungen/SpaceBourne2-SilentOps) ·
+  [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/6)
+- **Gear Without Levels**, gear usable at any level:
+  [GitHub](https://github.com/hubertdungen/SpaceBourne2-GearWithoutLevels) ·
+  [Nexus Mods](https://www.nexusmods.com/spacebourne2/mods/7)
+
+They all share one UE4SS, so you can run them together. SB2 HOTAS only touches flight, the
+cockpit camera and the screen layout, so it doesn't clash with the others.
+
 ## Credits and license
 
 SB2 HOTAS is MIT licensed (see `LICENSE`). It builds on:
