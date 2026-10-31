@@ -1,4 +1,4 @@
-<p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/logo.png" alt="SB2 HOTAS" width="520"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/hubertdungen/SpaceBourne2-HOTAS/main/docs/banner.jpg" alt="SB2 HOTAS for SpaceBourne 2: head tracking, triple screen, joystick, pedals" width="900"></p>
 
 # SB2 HOTAS: real flight controls and head tracking for SpaceBourne 2
 
