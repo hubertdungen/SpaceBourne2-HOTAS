@@ -17,6 +17,7 @@ internal sealed class Screens
     int oldStyle;
     Rectangle oldRect;
     bool stretched, gaveUp;
+    long frozenSince;
     readonly Queue<long> retries = new();
     string written = "";
 
@@ -29,9 +30,15 @@ internal sealed class Screens
         var used = displays.Where(d => d.Bounds.Right > area.Left && d.Bounds.Left < area.Right).ToList();
         var game = FindGameWindow(process);
         if (game != window) { window = game; stretched = gaveUp = false; retries.Clear(); }
+        // A frozen game is left alone: moving or restyling a window waits for the program that owns it, so the
+        // bridge would freeze with it. BridgeForm offers to close a game that stays frozen over every monitor.
+        bool frozen = game != IntPtr.Zero && IsHungAppWindow(game);
+        if (!frozen) frozenSince = 0;
+        else if (frozenSince == 0) frozenSince = Environment.TickCount64;
+        FrozenSeconds = frozen ? (int)((Environment.TickCount64 - frozenSince) / 1000) : 0;
         bool multi = used.Count > 1;
-        if (!span || !multi) PutBack();
-        bool spread = span && multi && game != IntPtr.Zero && !gaveUp && Stretch(game, area);
+        if (!frozen && (!span || !multi)) PutBack();
+        bool spread = span && multi && game != IntPtr.Zero && !gaveUp && (frozen ? stretched : Stretch(game, area));
 
         // The centre monitor's slice of the window. Width 0 lets the mod use a centred 16:9 slice instead,
         // which suits a single ultrawide or an NVIDIA Surround / AMD Eyefinity screen.
@@ -53,6 +60,7 @@ internal sealed class Screens
         text.Append(!multi ? (displays.Count > 1 ? "Nothing to stretch." : "Only one monitor found, so there is nothing to stretch.") + " The FOV and HUD options still help an ultrawide or Surround screen."
             : !span ? "Stretching is off."
             : game == IntPtr.Zero ? "Waiting for SpaceBourne 2…"
+            : frozen ? $"SpaceBourne 2 isn't responding ({FrozenSeconds} s). Its window stays as it is until it answers again."
             : gaveUp ? "SpaceBourne 2 keeps putting its window back. In the game, set Display Mode to Windowed Fullscreen (or Windowed), "
                 + "then untick and tick the first box again."
             : spread ? $"SpaceBourne 2 is stretched over {used.Count} monitors ({area.Width}×{area.Height})."
@@ -63,7 +71,7 @@ internal sealed class Screens
     bool Stretch(IntPtr h, Rectangle area) => PerMonitor(() =>
     {
         if (IsIconic(h)) return false;                       // minimised: leave it alone
-        if (IsZoomed(h)) ShowWindow(h, SW_RESTORE);
+        if (IsZoomed(h)) ShowWindowAsync(h, SW_RESTORE);
         int style = GetWindowLong(h, GWL_STYLE);
         GetWindowRect(h, out var r);
         var now = Rectangle.FromLTRB(r.Left, r.Top, r.Right, r.Bottom);
@@ -79,16 +87,22 @@ internal sealed class Screens
             if (retries.Count > 3) { gaveUp = true; return false; }
         }
         if (style != want) SetWindowLong(h, GWL_STYLE, want);
-        SetWindowPos(h, IntPtr.Zero, area.X, area.Y, area.Width, area.Height, Move);
+        SetWindowPos(h, IntPtr.Zero, area.X, area.Y, area.Width, area.Height, Move | Async);
         return true;
     });
+
+    // How long the game window has not answered (0 while it answers), and whether the bridge has it stretched.
+    public int FrozenSeconds { get; private set; }
+    public bool Covering => stretched && window != IntPtr.Zero;
+    public IntPtr GameWindow => window;
+    public static int CentreIndex() { var all = Displays(); return all.FindIndex(d => d.Bounds == Centre(all)); }
 
     void PutBack()
     {
         if (stretched && IsWindow(window)) PerMonitor(() =>
         {
             SetWindowLong(window, GWL_STYLE, oldStyle);
-            SetWindowPos(window, IntPtr.Zero, oldRect.X, oldRect.Y, oldRect.Width, oldRect.Height, Move);
+            SetWindowPos(window, IntPtr.Zero, oldRect.X, oldRect.Y, oldRect.Width, oldRect.Height, Move | Async);
             return true;
         });
         stretched = gaveUp = false;
@@ -195,6 +209,9 @@ internal sealed class Screens
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out RECT rect);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] static extern int GetWindowLong(IntPtr h, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongW")] static extern int SetWindowLong(IntPtr h, int index, int value);
+    const uint Async = 0x4000;   // SWP_ASYNCWINDOWPOS: post the move, never wait for the game to answer
+    [DllImport("user32.dll")] static extern bool IsHungAppWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr h, int command);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
 }

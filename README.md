@@ -128,6 +128,7 @@ If you changed a key in the game's settings, change it in the **Game key** colum
 |---|---|
 | **Ctrl+Alt+F12** | Disarms instantly; the game goes back to keyboard and mouse. |
 | **Ctrl+Alt+F11** | Recentres your head (OpenTrack). |
+| **Ctrl+Alt+End** | Closes SpaceBourne 2, but only once it has stopped responding (frozen for 5 s or more). |
 
 Movements that aren't on a controller still answer to the game's default keys:
 
@@ -311,6 +312,8 @@ This path hasn't been tested on real Linux hardware yet. If you try it, a quick 
 **The bridge window takes up to a minute to appear.** That happens the first time a new version runs: your antivirus checks the new `SB2-HOTAS.exe` before letting it start. Later starts are quick.
 
 **The bridge shows your sticks moving, but the ship ignores them (or head tracking does nothing).** On some PCs Windows quietly refuses the bridge's updates to the file the game reads, usually after an update of the bridge. The bridge notices (the game reports *"Waiting for the bridge: no new frames"*) and switches to a second file by itself within a few seconds. If the top of the bridge window still says *"The game gets no controls"*: close the bridge, delete `state.txt` and `state2.txt` in `%LOCALAPPDATA%\SB2HOTAS`, and open it again. Allowing `SB2-HOTAS.exe` in your antivirus can help too.
+
+**The game froze and covers all your monitors.** SpaceBourne 2 can stop responding now and then, mostly while starting or loading; it happens without SB2 HOTAS too. Stretched over every monitor, a frozen game leaves nothing to click. After 20 seconds the bridge puts a small window on your centre monitor: **Close SpaceBourne 2** gets your desktop back (progress since your last save is lost), **Wait** gives a long load another minute. **Ctrl+Alt+End** does the same without the window. The bridge never moves or resizes a game window that isn't responding.
 
 **The view is off-centre on your main monitor (on foot, the character sits far to one side).** The game looks at the middle of its window, so the bridge stretches it only as far as it can go equally on both sides of your main monitor. A TV or tablet connected as an extra screen on one side is left out. If your main monitor is at one end of the row, make it the middle one in Windows display settings.
 

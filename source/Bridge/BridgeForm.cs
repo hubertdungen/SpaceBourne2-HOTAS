@@ -197,10 +197,11 @@ internal sealed class BridgeForm : Form
         bool stop=Native.RegisterHotKey(Handle,1,0x4003,0x7B);
         bool center=Native.RegisterHotKey(Handle,2,0x4003,0x7A);
         if(!stop || !center) status.Text="Another app owns Ctrl+Alt+F11/F12. Use the DISARM button in this window.";
+        Native.RegisterHotKey(Handle,3,0x4003,0x23);   // Ctrl+Alt+End: close a frozen SpaceBourne 2
     }
     protected override void WndProc(ref Message m)
     {
-        if(m.Msg==0x312) { if(m.WParam==1) Disarm(); else if(m.WParam==2) CenterHead(); }
+        if(m.Msg==0x312) { if(m.WParam==1) Disarm(); else if(m.WParam==2) CenterHead(); else if(m.WParam==3) CloseFrozenGame(true); }
         base.WndProc(ref m);
     }
     void CenterHead() { lock(poseLock) zero=(double[])pose.Clone(); }
@@ -272,8 +273,34 @@ internal sealed class BridgeForm : Form
     // A failure here must never disarm flight, so it only shows on the tab.
     void UpdateScreens()
     {
-        try { screenLabel.Text=screens.Tick(spanCheck.Checked,fovCheck.Checked,hudCheck.Checked,GameProcess); }
+        try { screenLabel.Text=screens.Tick(spanCheck.Checked,fovCheck.Checked,hudCheck.Checked,GameProcess); CheckFrozen(); }
         catch(Exception e) { screenLabel.Text="Triple screen: "+e.Message; }
+    }
+    // A frozen game stretched over every monitor leaves nothing to click, so after 20 s the bridge shows a window on
+    // top of it that can close it. It goes away by itself when the game answers again. (A save load pauses the game
+    // window for about 6 s on a fast PC; the start-up pause comes before the window is stretched.)
+    FrozenPrompt? frozenPrompt;
+    long frozenWaitUntil;
+    void CheckFrozen()
+    {
+        bool show=screens.Covering && screens.FrozenSeconds>=20 && Environment.TickCount64>=frozenWaitUntil;
+        if(show && frozenPrompt==null)
+        {
+            frozenPrompt=new FrozenPrompt(()=>CloseFrozenGame(false),()=>{frozenWaitUntil=Environment.TickCount64+60000; HideFrozenPrompt();});
+            frozenPrompt.ShowOn(Screens.CentreIndex());
+        }
+        else if(!show && frozenPrompt!=null) HideFrozenPrompt();
+    }
+    void HideFrozenPrompt() { var p=frozenPrompt; frozenPrompt=null; p?.Close(); p?.Dispose(); }
+    // Ctrl+Alt+End or the prompt. A game that answers is never closed from here.
+    void CloseFrozenGame(bool fromKey)
+    {
+        if(screens.FrozenSeconds<5) { if(fromKey) status.Text="SpaceBourne 2 is responding, so Ctrl+Alt+End leaves it alone."; return; }
+        HideFrozenPrompt();
+        if(armed) Disarm();   // let go of any game keys first
+        int closed=0;
+        foreach(var p in Process.GetProcessesByName(GameProcess)) using(p) { try { p.Kill(); closed++; } catch(Exception e) when(e is InvalidOperationException or System.ComponentModel.Win32Exception) { } }
+        status.Text=closed>0 ? "SpaceBourne 2 had stopped responding and was closed." : "SpaceBourne 2 could not be closed. Try Task Manager (Ctrl+Shift+Esc) or restart Windows.";
     }
     void Disarm()
     {
