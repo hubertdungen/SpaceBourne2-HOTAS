@@ -276,14 +276,15 @@ internal sealed class BridgeForm : Form
         try { screenLabel.Text=screens.Tick(spanCheck.Checked,fovCheck.Checked,hudCheck.Checked,GameProcess); CheckFrozen(); }
         catch(Exception e) { screenLabel.Text="Triple screen: "+e.Message; }
     }
-    // A frozen game stretched over every monitor leaves nothing to click, so after 20 s the bridge shows a window on
-    // top of it that can close it. It goes away by itself when the game answers again. (A save load pauses the game
-    // window for about 6 s on a fast PC; the start-up pause comes before the window is stretched.)
+    // A frozen game stretched over every monitor leaves nothing to click, so the bridge shows a window on top of it
+    // that can close it. It goes away by itself when the game answers again. Never while the game is still starting
+    // (its window doesn't answer for 25-90 s then, which is normal), and only after 45 s: a save load pauses the
+    // window for about 6 s on a fast PC, longer on a slow disk.
     FrozenPrompt? frozenPrompt;
     long frozenWaitUntil;
     void CheckFrozen()
     {
-        bool show=screens.Covering && screens.FrozenSeconds>=20 && Environment.TickCount64>=frozenWaitUntil;
+        bool show=screens.Covering && screens.Ready && screens.FrozenSeconds>=45 && Environment.TickCount64>=frozenWaitUntil;
         if(show && frozenPrompt==null)
         {
             frozenPrompt=new FrozenPrompt(()=>CloseFrozenGame(false),()=>{frozenWaitUntil=Environment.TickCount64+60000; HideFrozenPrompt();});

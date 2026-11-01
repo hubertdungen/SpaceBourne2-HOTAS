@@ -17,7 +17,7 @@ internal sealed class Screens
     int oldStyle;
     Rectangle oldRect;
     bool stretched, gaveUp;
-    long frozenSince;
+    long frozenSince, answeringSince;
     readonly Queue<long> retries = new();
     string written = "";
 
@@ -29,13 +29,18 @@ internal sealed class Screens
         var area = Around(displays, centre);
         var used = displays.Where(d => d.Bounds.Right > area.Left && d.Bounds.Left < area.Right).ToList();
         var game = FindGameWindow(process);
-        if (game != window) { window = game; stretched = gaveUp = false; retries.Clear(); }
+        if (game != window) { window = game; stretched = gaveUp = false; retries.Clear(); Ready = false; answeringSince = 0; }
         // A frozen game is left alone: moving or restyling a window waits for the program that owns it, so the
         // bridge would freeze with it. BridgeForm offers to close a game that stays frozen over every monitor.
         bool frozen = game != IntPtr.Zero && IsHungAppWindow(game);
         if (!frozen) frozenSince = 0;
         else if (frozenSince == 0) frozenSince = Environment.TickCount64;
         FrozenSeconds = frozen ? (int)((Environment.TickCount64 - frozenSince) / 1000) : 0;
+        // While starting, the game's window doesn't answer for 25-90 s and that's normal. It counts as started once
+        // it has answered for 10 s in a row (the main menu).
+        if (frozen || game == IntPtr.Zero) answeringSince = 0;
+        else if (answeringSince == 0) answeringSince = Environment.TickCount64;
+        else if (Environment.TickCount64 - answeringSince >= 10000) Ready = true;
         bool multi = used.Count > 1;
         if (!frozen && (!span || !multi)) PutBack();
         bool spread = span && multi && game != IntPtr.Zero && !gaveUp && (frozen ? stretched : Stretch(game, area));
@@ -60,7 +65,8 @@ internal sealed class Screens
         text.Append(!multi ? (displays.Count > 1 ? "Nothing to stretch." : "Only one monitor found, so there is nothing to stretch.") + " The FOV and HUD options still help an ultrawide or Surround screen."
             : !span ? "Stretching is off."
             : game == IntPtr.Zero ? "Waiting for SpaceBourne 2…"
-            : frozen ? $"SpaceBourne 2 isn't responding ({FrozenSeconds} s). Its window stays as it is until it answers again."
+            : frozen && !Ready ? $"SpaceBourne 2 is starting ({FrozenSeconds} s). That can take a minute or more."
+            : frozen ? $"SpaceBourne 2 isn't responding ({FrozenSeconds} s); it may still be loading. Its window stays as it is until it answers again."
             : gaveUp ? "SpaceBourne 2 keeps putting its window back. In the game, set Display Mode to Windowed Fullscreen (or Windowed), "
                 + "then untick and tick the first box again."
             : spread ? $"SpaceBourne 2 is stretched over {used.Count} monitors ({area.Width}×{area.Height})."
@@ -93,6 +99,7 @@ internal sealed class Screens
 
     // How long the game window has not answered (0 while it answers), and whether the bridge has it stretched.
     public int FrozenSeconds { get; private set; }
+    public bool Ready { get; private set; }   // has run normally once (past its start-up load)
     public bool Covering => stretched && window != IntPtr.Zero;
     public IntPtr GameWindow => window;
     public static int CentreIndex() { var all = Displays(); return all.FindIndex(d => d.Bounds == Centre(all)); }

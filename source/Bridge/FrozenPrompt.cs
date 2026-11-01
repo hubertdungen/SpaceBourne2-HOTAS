@@ -19,9 +19,9 @@ internal sealed class FrozenPrompt : Form
         Padding = new Padding(18);
         var text = new Label
         {
-            Text = "SpaceBourne 2 has stopped responding, and it covers all your monitors.\r\n\r\n"
-                 + "Close it to get your desktop back (progress since your last save is lost), "
-                 + "or wait a minute: a long load can come back by itself.\r\n\r\n"
+            Text = "SpaceBourne 2 isn't responding, and it covers all your monitors.\r\n\r\n"
+                 + "It may still be loading: a long load comes back by itself, so wait a little first. "
+                 + "If it stays frozen, close it to get your desktop back (progress since your last save is lost).\r\n\r\n"
                  + "Ctrl+Alt+End also closes a frozen SpaceBourne 2.",
             AutoSize = false, Dock = DockStyle.Fill,
         };
