@@ -178,6 +178,15 @@ local function tryHooks()
         end
     end,function() end)
 end
+-- The ship may load after the map starts: this mod's own hooks try again, at most once a second.
+local nextTry=0
+local function retryHooks()
+    if failed or (hookedShip and hookedCamera) then return end
+    local now=os.clock()
+    if now<nextTry then return end
+    nextTry=now+1
+    tryHooks()
+end
 -- Menus have no ship ticking, so Screen also follows the game's own calls that put a widget on screen, size, move
 -- or anchor it: right after the game does, Screen puts that widget on the centre monitor, before it is ever drawn
 -- elsewhere. These are engine functions, hooked once; the game calls them on the game thread.
@@ -198,6 +207,7 @@ local function hookWidgets()
                 if sizing then pcall(Screen.sizing,context:get(),size) end
             end,function(context)
                 pcall(Screen.widget,context:get(),onlyMoved)
+                retryHooks()
             end)
         end)
         print("[SB2HOTAS] Screen "..(ok and "follows " or "can't follow ")..fn..(ok and "" or ": "..tostring(err)).."\n")
@@ -212,17 +222,18 @@ local function hookLevelTick(actor)
     local path=actor:GetClass():GetFullName():match("^%S+%s+(/Game/.+)$")
     if not path or levelHooked[path]~=nil then return end
     local fn=path..":ReceiveTick"
-    levelHooked[path]=valid(StaticFindObject(fn)) and pcall(RegisterHook,fn,function() pcall(Screen.tick) end) or false
+    levelHooked[path]=valid(StaticFindObject(fn)) and pcall(RegisterHook,fn,function() pcall(Screen.tick); retryHooks() end) or false
     if levelHooked[path] then print("[SB2HOTAS] Screen also ticks with "..fn.."\n") end
 end
--- Try on the game thread whenever an actor starts or a map's game state is set up. A background loop
--- (LoopAsync) is only the fallback for UE4SS builds without these hooks: Lua must never run on two threads at once.
+-- Hooks go in when a map's game state is set up, and are retried from this mod's own hooks. No BeginPlay hook:
+-- it also fires for actors other mods spawn from their Lua, inside their Lua call, and UE4SS 3.0.1 then runs this
+-- mod's function in the wrong Lua state ("has no instance inside lua_instances", about one error a second with the
+-- whole realism set). A background loop (LoopAsync) is only the fallback for UE4SS builds without the game-state
+-- hook: Lua must never run on two threads at once.
+local function levelTicks() for _,actor in ipairs(FindAllOf("LevelScriptActor") or {}) do pcall(hookLevelTick,actor) end end
 local onGameThread=false
-if type(RegisterBeginPlayPostHook)=="function" and pcall(RegisterBeginPlayPostHook,function(context)
-    tryHooks(); hookWidgets(); pcall(hookLevelTick,context:get()); pcall(Screen.tick)
-end) then onGameThread=true end
 if type(RegisterInitGameStatePostHook)=="function" and pcall(RegisterInitGameStatePostHook,function()
-    tryHooks(); hookWidgets(); pcall(Screen.rescan); pcall(Screen.tick)   -- a new map: look through its widgets once
+    tryHooks(); hookWidgets(); pcall(levelTicks); pcall(Screen.rescan); pcall(Screen.tick)   -- a new map
 end) then onGameThread=true end
 if not onGameThread then
     local queued=false
