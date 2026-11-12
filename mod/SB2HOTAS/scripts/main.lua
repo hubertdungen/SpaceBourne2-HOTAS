@@ -1,5 +1,7 @@
 -- SB2 HOTAS: analog joystick/pedal flight and head tracking for SpaceBourne 2, fed by the SB2-HOTAS bridge.
 -- No offsets, executable patches, save writes, or console gameplay commands.
+-- Read by the bridge and the realism installer to show which version is in the game; Package.ps1 checks it.
+local VERSION = "0.3.6"
 local P = require("protocol")
 local Config = require("config")
 local Screen = require("screen")   -- triple screen / ultrawide: FOV and HUD, independent of flight
@@ -58,11 +60,27 @@ local function releaseFlight(ship)
     ship.MoveRoll=0
     flying=nil
 end
+-- UE4SS 3.0.1 keeps every table passed as a UFunction out parameter (SweepHitResult below) in the Lua registry for
+-- good: a fresh {} per frame leaked 1-2 KB a call. So all of them share this one table, and the calls only happen
+-- when something changes. Each call still adds a few bytes to the registry.
+local HIT={}
+local outCalls=0   -- for the heap log below
+-- Test aid: with SB2HOTAS_HEAPLOG set in the game's environment, logs the Lua heap after a full collection once a
+-- minute. A normal game never sets it, so this costs nothing there.
+local heapLogAt=os.getenv("SB2HOTAS_HEAPLOG") and 0 or nil
+local function heapLog()
+    if not heapLogAt or os.clock()<heapLogAt then return end
+    heapLogAt=os.clock()+60
+    collectgarbage("collect"); collectgarbage("collect")   -- the second frees what the first only finalized (hook parameters)
+    print(string.format("[SB2HOTAS] Lua heap %.0f KB after a full collection; %d out-parameter calls since the last line\n",collectgarbage("count"),outCalls))
+    outCalls=0
+end
+local function near(a,b) return math.abs(a-b)<.01 end
+local function nearAngle(a,b) local d=(a-b)%360; return d<.01 or d>359.99 end
 -- Puts the cockpit camera back where the game had it, if it's the one we moved. `cam` comes from the current hook.
 local function releaseCamera(cam)
     if not cameraState or cam:GetAddress()~=cameraState.key then return end
-    cam:K2_SetRelativeRotation(cameraState.rotation,false,{},false)
-    cam:K2_SetRelativeLocation(cameraState.location,false,{},false)
+    cam:K2_SetRelativeLocationAndRotation(cameraState.location,cameraState.rotation,false,HIT,false); outCalls=outCalls+1
     cameraState=nil
 end
 -- After an error the mod stops, but each hook still hands its object back to the game (cleanup).
@@ -89,6 +107,7 @@ local function allowed(ship)
 end
 local function flight(context,delta)
     pcall(Screen.tick)   -- once a second, from any ship: HUD placement and FOV outside the cockpit
+    heapLog()
     local function cleanup() local s=context:get(); if valid(s) then releaseFlight(s) end end
     protect(function()
         local ship=context:get()
@@ -114,7 +133,10 @@ local function flight(context,delta)
         if has.pitch or has.yaw then
             -- Same aim arm as the game's retained HOTAS path; cockpit head camera is separate.
             -- Arm pitch up = aim up (as MouseY), so stick forward (negative) dives.
-            arm:K2_AddLocalRotation({Pitch=f.pitch*f.rate*dt,Yaw=f.yaw*f.rate*dt,Roll=0},false,{},false)
+            local pitch,yaw=f.pitch*f.rate*dt,f.yaw*f.rate*dt
+            if pitch~=0 or yaw~=0 then   -- a centred stick adds nothing, so no call
+                arm:K2_AddLocalRotation({Pitch=pitch,Yaw=yaw,Roll=0},false,HIT,false); outCalls=outCalls+1
+            end
             ship:UpdateVectors()
         end
         -- Axes the player did not assign are left alone, so keyboard and mouse keep driving them.
@@ -131,6 +153,7 @@ local function flight(context,delta)
 end
 local function head(context,delta)
     pcall(Screen.tick)
+    heapLog()
     local function cleanup()
         local cockpit=context:get()
         local cam=valid(cockpit) and cockpit.Camera or nil
@@ -158,12 +181,17 @@ local function head(context,delta)
             cameraState={key=key,owner=owner,rotation={Pitch=r.Pitch,Yaw=r.Yaw,Roll=r.Roll},location={X=l.X,Y=l.Y,Z=l.Z}}
         end
         local r,l=cameraState.rotation,cameraState.location
-        cam:K2_SetRelativeRotation({Pitch=r.Pitch+P.clamp(f.headPitch,-75,75),Yaw=r.Yaw+P.clamp(f.headYaw,-110,110),Roll=r.Roll+P.clamp(f.headRoll,-35,35)},false,{},false)
+        local pitch,yaw,roll=r.Pitch+P.clamp(f.headPitch,-75,75),r.Yaw+P.clamp(f.headYaw,-110,110),r.Roll+P.clamp(f.headRoll,-35,35)
         -- OpenTrack X=right,Y=up,Z=back; UE X=forward,Y=right,Z=up, both in cm.
-        cam:K2_SetRelativeLocation({X=l.X-P.clamp(f.z,-20,20),Y=l.Y+P.clamp(f.x,-20,20),Z=l.Z+P.clamp(f.y,-15,15)},false,{},false)
+        local x,y,z=l.X-P.clamp(f.z,-20,20),l.Y+P.clamp(f.x,-20,20),l.Z+P.clamp(f.y,-15,15)
+        -- Compared with the camera itself, so anything else that moves it is still corrected.
+        local cr,cl=cam.RelativeRotation,cam.RelativeLocation
+        if nearAngle(cr.Pitch,pitch) and nearAngle(cr.Yaw,yaw) and nearAngle(cr.Roll,roll)
+            and near(cl.X,x) and near(cl.Y,y) and near(cl.Z,z) then return end   -- a still head: no call
+        cam:K2_SetRelativeLocationAndRotation({X=x,Y=y,Z=z},{Pitch=pitch,Yaw=yaw,Roll=roll},false,HIT,false); outCalls=outCalls+1
     end,cleanup)
 end
-status("Loaded. Waiting for a player-controlled ship.")
+status("Loaded ("..VERSION.."). Waiting for a player-controlled ship.")
 -- The ship and cockpit classes only exist once the game has loaded them, so the hooks go in as soon as they do.
 local function tryHooks()
     if failed or (hookedShip and hookedCamera) then return end
@@ -222,7 +250,7 @@ local function hookLevelTick(actor)
     local path=actor:GetClass():GetFullName():match("^%S+%s+(/Game/.+)$")
     if not path or levelHooked[path]~=nil then return end
     local fn=path..":ReceiveTick"
-    levelHooked[path]=valid(StaticFindObject(fn)) and pcall(RegisterHook,fn,function() pcall(Screen.tick); retryHooks() end) or false
+    levelHooked[path]=valid(StaticFindObject(fn)) and pcall(RegisterHook,fn,function() pcall(Screen.tick); heapLog(); retryHooks() end) or false
     if levelHooked[path] then print("[SB2HOTAS] Screen also ticks with "..fn.."\n") end
 end
 -- Hooks go in when a map's game state is set up, and are retried from this mod's own hooks. No BeginPlay hook:

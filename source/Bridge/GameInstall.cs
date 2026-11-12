@@ -16,7 +16,7 @@ internal static class GameInstall
     public static bool IsGame(string folder)=>File.Exists(Path.Combine(folder,ExePath));
     public static string Win64(string game)=>Path.GetDirectoryName(Path.Combine(game,ExePath))!;
     // UE4SS 3.0.0 (bundled) keeps UE4SS.dll and Mods next to the exe; later 3.x releases move them into "ue4ss\".
-    static string? ExistingMods(string win64)=>
+    public static string? ExistingMods(string win64)=>
         File.Exists(Path.Combine(win64,"ue4ss","UE4SS.dll")) ? Path.Combine(win64,"ue4ss","Mods")
         : File.Exists(Path.Combine(win64,"UE4SS.dll")) ? Path.Combine(win64,"Mods") : null;
 

@@ -29,9 +29,13 @@ internal sealed class BridgeForm : Form
     readonly CheckBox hudCheck=new() { Text="Keep the HUD and menus on the centre monitor", AutoSize=true };
     readonly Label screenLabel=new() { AutoSize=true, MaximumSize=new Size(1000,0), Padding=new Padding(0,10,0,0) };
     readonly Screens screens=new();
-    readonly LinkLabel updateLink=new() { AutoSize=true, Visible=false, Padding=new Padding(8,6,0,0), Font=new Font("Segoe UI",9,FontStyle.Bold) };
-    // Fixed on purpose: the update check only reads a version number, it never decides where the link goes.
-    const string ReleasesUrl="https://github.com/hubertdungen/SpaceBourne2-HOTAS/releases/latest";
+    readonly LinkLabel updateLink=new() { AutoSize=true, Visible=false, Padding=new Padding(16,6,0,0), Font=new Font("Segoe UI",9,FontStyle.Bold) };
+    // Bottom line: this bridge's version, the in-game mod's, and a green button when the mod needs installing.
+    readonly Label versionLabel=new() { AutoSize=true, Padding=new Padding(0,6,0,0), Font=new Font("Segoe UI",9) };
+    readonly Button modButton=new() { AutoSize=true, Visible=false, FlatStyle=FlatStyle.Flat, BackColor=Color.FromArgb(46,160,67), ForeColor=Color.White, Font=new Font("Segoe UI",9,FontStyle.Bold), Margin=new Padding(10,2,0,0), Cursor=Cursors.Hand };
+    ModInfo? modInfo;
+    Version? available;   // a newer release, once the check found one
+    bool updating;
     bool reverseToggled;
     readonly Dictionary<ButtonBinding,bool> lastPressed=[];
     readonly Dictionary<ButtonBinding,(int Pending,long Down,long Gap)> taps=[];
@@ -58,7 +62,7 @@ internal sealed class BridgeForm : Form
     readonly Dictionary<string,short[]> learnStart=[];
     readonly Dictionary<string,(double Min,double Max)> ranges=[];
     int ticks;
-    public BridgeForm()
+    public BridgeForm(string? updatedFrom=null)
     {
         Directory.CreateDirectory(Data.Dir);
         settings=Settings.Load(profilePath);
@@ -66,7 +70,8 @@ internal sealed class BridgeForm : Form
         try { Icon=Icon.ExtractAssociatedIcon(Environment.ProcessPath!); } catch { }   // the exe's own icon, for the title bar and taskbar
         Size=new Size(1100,770); MinimumSize=new Size(1000,700); StartPosition=FormStartPosition.CenterScreen;
         Font=new Font("Segoe UI",10);
-        var layout=new TableLayoutPanel { Dock=DockStyle.Fill, Padding=new Padding(16), RowCount=6, ColumnCount=1 };
+        var layout=new TableLayoutPanel { Dock=DockStyle.Fill, Padding=new Padding(16), RowCount=7, ColumnCount=1 };
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute,250));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -139,10 +144,14 @@ internal sealed class BridgeForm : Form
         bottom.Controls.Add(new Label { Text="Turn rate °/s", AutoSize=true, Padding=new Padding(8,6,0,0) }); bottom.Controls.Add(turnRate);
         armButton.Click+=(_,_)=>Safe(ToggleArm); bottom.Controls.Add(armButton);
         bottom.Controls.Add(headLabel);
-        updateLink.LinkClicked+=(_,_)=>Safe(()=>Process.Start(new ProcessStartInfo(ReleasesUrl) { UseShellExecute=true }));
-        bottom.Controls.Add(updateLink); layout.Controls.Add(bottom,0,4);
-        _=CheckForUpdate();
-        layout.Controls.Add(status,0,5); Controls.Add(layout);
+        layout.Controls.Add(bottom,0,4);
+        layout.Controls.Add(status,0,5);
+        var versions=new FlowLayoutPanel { AutoSize=true, Dock=DockStyle.Fill, Padding=new Padding(0,6,0,0) };
+        modButton.FlatAppearance.BorderSize=0;
+        modButton.Click+=(_,_)=>Safe(ModButtonClicked);
+        updateLink.LinkClicked+=(_,_)=>UpdateLinkClicked();
+        versions.Controls.Add(versionLabel); versions.Controls.Add(modButton); versions.Controls.Add(updateLink);
+        layout.Controls.Add(versions,0,6); Controls.Add(layout);
         try
         {
             if(settings.UseHotas) { StartSdl(); RefreshDevices(); }
@@ -159,6 +168,11 @@ internal sealed class BridgeForm : Form
         UpdateScreens();
         timer.Tick+=(_,_)=>Safe(Poll); timer.Start();
         FormClosing+=(_,_)=>CloseBridge();
+        RefreshModVersion();
+        if(updatedFrom!=null)
+            status.Text=$"Updated from {updatedFrom} to {Application.ProductVersion}. The old version is kept in {Updater.BackupDir}."
+                +(modInfo?.Status is ModStatus.Older or ModStatus.Unknown ? " Click Update at the bottom to update the in-game mod too." : "");
+        Shown+=(_,_)=>_=CheckForUpdate();   // after the window is up, so the question has a window to sit on
     }
     // The controller reader starts only while HOTAS / HOSAS is on. The hint must be set before SDL_Init: the bridge
     // reads the controllers while the game has focus.
@@ -254,21 +268,80 @@ internal sealed class BridgeForm : Form
         }
         status.Text="Starting SpaceBourne 2… Get in your ship, then click ARM (if it isn't armed already).";
     }
-    // Once per start: asks GitHub for the latest release and shows a link when it is newer than this one.
+    // Once per start: asks GitHub for the latest release. When it is newer, a copy of the release package offers to
+    // update itself; the realism installer's copy points to its "Update all"; a lone exe links to the download.
     async Task CheckForUpdate()
+    {
+        Version? latest;
+        try { latest=await Updater.Latest(); }
+        catch { return; }   // offline or GitHub unreachable: no news is fine
+        if(latest==null || latest<=Updater.Current) return;
+        available=latest;
+        var root=Updater.PackageRoot();
+        updateLink.Text=root==null ? $"SB2 HOTAS {latest} is out: click here to download it"
+            : Updater.InstallerCopy(root) ? $"SB2 HOTAS {latest} is out: update it with Update all in the SpaceBourne 2 Realism installer"
+            : $"SB2 HOTAS {latest} is out: click here to update";
+        updateLink.Visible=true;
+        if(root!=null && !Updater.InstallerCopy(root)) await OfferUpdate(latest,root);
+    }
+    void UpdateLinkClicked()
+    {
+        var root=Updater.PackageRoot();
+        if(available!=null && root!=null && !Updater.InstallerCopy(root)) { _=OfferUpdate(available,root); return; }
+        if(root!=null && Updater.InstallerCopy(root))
+        {
+            MessageBox.Show(this,"This copy of SB2 HOTAS belongs to the SpaceBourne 2 Realism installer. Close the bridge, then click Update all in the installer.","SB2 HOTAS",MessageBoxButtons.OK,MessageBoxIcon.Information);
+            return;
+        }
+        try { Process.Start(new ProcessStartInfo(Updater.ReleasesPage) { UseShellExecute=true }); } catch { }
+    }
+    // Asks first: the update closes this bridge and opens the new one.
+    async Task OfferUpdate(Version latest,string root)
+    {
+        if(updating) return;
+        var answer=MessageBox.Show(this,$"SB2 HOTAS {latest} is out (you have {Application.ProductVersion}).\n\nUpdate now? The bridge downloads it (about 50 MB), "
+            +$"keeps a copy of this version in\n{Updater.BackupDir}\nand opens again. Your controller setup is kept.\n\n"
+            +"The new version's first start can take up to a minute while your antivirus checks it.",
+            "SB2 HOTAS update",MessageBoxButtons.YesNo,MessageBoxIcon.Question);
+        if(answer!=DialogResult.Yes) { status.Text=$"SB2 HOTAS {latest} can wait: click the update link at the bottom when you want it."; return; }
+        updating=true; updateLink.Enabled=false;
+        string? temp=null;
+        try
+        {
+            Disarm();
+            var (folder,package)=await Updater.Download(latest,new Progress<int>(p=>status.Text=$"Downloading SB2 HOTAS {latest}… {p}%"),cancel.Token);
+            temp=folder;
+            status.Text=$"Installing SB2 HOTAS {latest}…";
+            await Task.Run(()=>Updater.Apply(root,package,Application.ProductVersion));
+            Updater.Restart(root,Application.ProductVersion);
+            Close();
+        }
+        catch(Exception e) when(!closing) { status.Text=$"The update didn't work, so this version stays: {e.Message}"; }
+        finally
+        {
+            updating=false; updateLink.Enabled=true;
+            if(temp!=null) { var t=temp; _=Task.Run(()=>Updater.TryDelete(t)); }
+        }
+    }
+    // The bottom line, from file reads only: runs every few seconds and after Install / Uninstall.
+    void RefreshModVersion()
     {
         try
         {
-            using var http=new HttpClient { Timeout=TimeSpan.FromSeconds(10) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("SB2-HOTAS/"+Application.ProductVersion);
-            var json=await http.GetStringAsync("https://api.github.com/repos/hubertdungen/SpaceBourne2-HOTAS/releases/latest");
-            using var doc=System.Text.Json.JsonDocument.Parse(json);
-            var tag=doc.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v','V');
-            if(tag is null || !Version.TryParse(tag,out var latest) || !Version.TryParse(Application.ProductVersion,out var mine) || latest<=mine) return;
-            updateLink.Text=$"SB2 HOTAS {tag} is out: click here to download it";
-            updateLink.Visible=true;
+            var game=settings.GameFolder!="" && GameInstall.IsGame(settings.GameFolder) ? settings.GameFolder : GameInstall.FindGame();
+            var info=ModCheck.Check(game,Updater.Current);
+            if(info==modInfo) return;
+            modInfo=info;
+            versionLabel.Text=$"Bridge {Application.ProductVersion}   ·   In-game mod: {info.Text}";
+            modButton.Text=info.Status switch { ModStatus.NoGame or ModStatus.Missing=>"Install", ModStatus.Off=>"Turn on", _=>"Update" };
+            modButton.Visible=info.Status is not (ModStatus.Current or ModStatus.Newer);
         }
-        catch { }   // offline or GitHub unreachable: no news is fine
+        catch { }   // only a display: it must never get in the way
+    }
+    void ModButtonClicked()
+    {
+        if(modInfo?.Game==null) InstallMod();   // the game wasn't found: ask where it is
+        else InstallInto(modInfo.Game);
     }
     // A failure here must never disarm flight, so it only shows on the tab.
     void UpdateScreens()
@@ -546,10 +619,17 @@ internal sealed class BridgeForm : Form
     {
         Disarm();
         var game=PickGame("Install the mod"); if(game==null) return;
+        InstallInto(game);
+    }
+    void InstallInto(string game)
+    {
+        Disarm();
         if(Process.GetProcessesByName(GameProcess).Length>0) throw new IOException("Quit SpaceBourne 2 before installing.");
         GameInstall.Install(game,GameInstall.PackageRoot,AppContext.BaseDirectory);
         settings.GameFolder=game; Save();   // the Play button starts this copy
-        status.Text=sdl ? $"Mod installed in {game}. Start the game, get in your ship and click ARM." : $"Mod installed in {game}. Restart the bridge to use your controllers.";
+        status.Text=sdl ? $"Mod {Application.ProductVersion} installed in {game}. Start the game, get in your ship and click ARM."
+            : $"Mod {Application.ProductVersion} installed in {game}. Restart the bridge to use your controllers.";
+        RefreshModVersion();
     }
     void UninstallMod()
     {
@@ -557,6 +637,7 @@ internal sealed class BridgeForm : Form
         var game=PickGame("Remove the mod"); if(game==null) return;
         if(Process.GetProcessesByName(GameProcess).Length>0) throw new IOException("Quit SpaceBourne 2 before removing the mod.");
         status.Text=GameInstall.Uninstall(game);
+        RefreshModVersion();
     }
     void ExportProfile()
     {
@@ -645,6 +726,7 @@ internal sealed class BridgeForm : Form
     {
         if(closing) return;
         if(ticks%60==0) UpdateScreens();   // about once a second
+        if(ticks%300==150) RefreshModVersion();   // every 5 s: the installer or a copy of the bridge may change the game
         bool hotas=hotasCheck.Checked;
         if(sdl && hotas) { Sdl.SDL_PumpEvents(); Sdl.SDL_JoystickUpdate(); }   // without SDL there are no devices, but head tracking still runs
         var lines=new List<string>();

@@ -6,6 +6,9 @@ $root = $PSScriptRoot
 $csproj = Join-Path $root 'source\Bridge\Bridge.csproj'
 $version = (Select-Xml -Path $csproj -XPath '//Version').Node.InnerText
 if (-not $version) { throw "No <Version> in $csproj." }
+# The bridge and the realism installer read the in-game mod's version from main.lua, so it must match.
+$luaVersion = [regex]::Match((Get-Content "$root\mod\SB2HOTAS\scripts\main.lua" -Raw), 'VERSION\s*=\s*"([^"]+)"').Groups[1].Value
+if ($luaVersion -ne $version) { throw "main.lua has VERSION = `"$luaVersion`" but Bridge.csproj has $version. Make them the same." }
 $out = Join-Path $root "release\SB2-HOTAS-$version"
 $zip = "$out.zip"
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }

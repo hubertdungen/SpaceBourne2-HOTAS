@@ -33,6 +33,7 @@ The game executable is never modified, and you can remove everything with one cl
 - **Keyboard still works.** Anything you don't put on a controller stays on keyboard and mouse.
 - **Stays out of your way.** Flight control pauses by itself in menus, warp, landing and docking. **Ctrl+Alt+F12** cuts it instantly.
 - **Fails safe.** If a game update changes something the mod relies on, the mod switches itself off and the game stays playable.
+- **Updates itself.** The bridge asks before updating, keeps a copy of the old version, and shows which version of the mod is in your game, with a green button to install or update it.
 - **Windows**, plus **Linux / Steam Deck** through Proton (experimental).
 
 ## What you need
@@ -51,7 +52,9 @@ Nothing else: no .NET, no mod manager. The download already includes everything,
 
 That's it. **Uninstall mod…** puts the game back exactly as it was. If you already use UE4SS for other mods, SB2 HOTAS reuses it and doesn't touch your other mods.
 
-**Updating.** When a new version is out, the bridge shows a link at the bottom of its window that opens the download page. (It asks GitHub once when it starts, and sends nothing about you.) Extract the new zip, open its bridge and click **Install mod…** again. Your controller setup is kept, because it's saved in `%LOCALAPPDATA%\SB2HOTAS`, not next to the program.
+**Updating.** The bridge updates itself. When it starts, it asks GitHub whether a new version is out (it sends nothing about you). If one is, it asks you first, then downloads it, keeps a copy of the old version in `%LOCALAPPDATA%\SB2HOTAS\backups`, and opens again. Your controller setup is kept, because it's saved in `%LOCALAPPDATA%\SB2HOTAS`, not next to the program. If you say **No**, a link at the bottom of the window lets you update later.
+
+The bottom line of the window shows the bridge's version and the version of the mod inside the game. When the in-game mod is missing, older, or switched off in `mods.txt`, a green **Install**, **Update** or **Turn on** button next to it fixes that in one click (quit the game first). If you use the SpaceBourne 2 Realism installer's copy of SB2 HOTAS, update it with the installer's **Update all** instead: that copy doesn't update itself.
 
 ## First flight (about 5 minutes)
 
