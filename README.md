@@ -386,3 +386,6 @@ The test copy shares the original game's save folder. `Start-TestCopy.ps1` backs
 ## Developers: release package
 
 `Package.ps1` builds `release\SB2-HOTAS-<version>.zip` with the .NET 10 SDK. Put [UE4SS 3.0.0](https://github.com/UE4SS-RE/RE-UE4SS/releases/tag/v3.0.0) (`UE4SS.dll`, `dwmapi.dll`, `UE4SS-settings.ini`) in `..\..\work\tools\ue4ss` first. The version comes from `<Version>` in `source\Bridge\Bridge.csproj`. The packaged README stops before the Developers sections, because the developer scripts are not in the zip.
+
+
+<p align="center"><a href="https://dlforge.dungenlabs.com"><img src="docs/branding/dlforge-logo.svg" alt="DL Forge" width="120"></a><br><a href="https://dlforge.dungenlabs.com">DL Forge</a></p>
